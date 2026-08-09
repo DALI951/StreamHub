@@ -1,0 +1,125 @@
+:root {
+    --font-en: 'Inter', sans-serif;
+    --font-ar: 'Noto Kufi Arabic', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: var(--font-en);
+    background: #030712;
+    color: #f3f4f6;
+    overflow-x: hidden;
+}
+
+html[lang="ar"] body,
+html[dir="rtl"] body {
+    font-family: var(--font-ar);
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+.card-hover {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card-hover:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    z-index: 10;
+}
+
+.poster-gradient {
+    background: linear-gradient(to top, #030712 0%, transparent 50%);
+}
+
+.hero-gradient {
+    background: linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(3,7,18,0.95) 50%, rgba(3,7,18,1) 100%);
+}
+
+.text-shadow {
+    text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.source-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.source-egydead { background: #dc2626; color: white; }
+.source-cima4u { background: #7c3aed; color: white; }
+.source-topcinema { background: #2563eb; color: white; }
+.source-faselhd { background: #059669; color: white; }
+.source-mycima { background: #d97706; color: white; }
+.source-arabseed { background: #db2777; color: white; }
+.source-akwam { background: #0891b2; color: white; }
+
+.quality-badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(239,68,68,0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.3);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+    animation: fadeInUp 0.4s ease forwards;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: #111827;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+#playerContainer video {
+    width: 100%;
+    max-height: 70vh;
+    background: black;
+    border-radius: 8px;
+}
+
+[dir="rtl"] .source-badge,
+[dir="rtl"] .quality-badge {
+    direction: ltr;
+    unicode-bidi: embed;
+}
