@@ -11,20 +11,28 @@ require_once __DIR__ . '/../src/Cache.php';
 require_once __DIR__ . '/../src/Scraper/SourceManager.php';
 
 $url = trim($_GET['url'] ?? '');
+$sourceParam = $_GET['source'] ?? '';
+$slug = $_GET['slug'] ?? '';
+
+if (empty($url) && !empty($sourceParam) && !empty($slug)) {
+    $manager = new SourceManager();
+    $scraper = $manager->resolveSource($sourceParam);
+    if ($scraper) {
+        $baseUrl = $scraper->getBaseUrl();
+        $url = rtrim($baseUrl, '/') . '/' . ltrim(urldecode($slug), '/');
+    }
+}
 
 if (empty($url)) {
-    echo json_encode(['error' => 'Missing url parameter']);
+    echo json_encode(['error' => 'Missing url or source+slug parameter']);
     exit;
 }
 
 $manager = new SourceManager();
 $scraper = $manager->detectSource($url);
 
-if (!$scraper) {
-    $sourceParam = $_GET['source'] ?? null;
-    if ($sourceParam) {
-        $scraper = $manager->getScraper($sourceParam);
-    }
+if (!$scraper && !empty($sourceParam)) {
+    $scraper = $manager->resolveSource($sourceParam);
 }
 
 if (!$scraper) {
@@ -34,7 +42,14 @@ if (!$scraper) {
 
 $details = $scraper->getDetails($url);
 if (!$details) {
-    echo json_encode(['error' => 'Failed to fetch details']);
+    echo json_encode([
+        'error' => 'Failed to fetch details',
+        'debug' => [
+            'source'   => $scraper->getSourceName(),
+            'base_url' => $scraper->getBaseUrl(),
+            'url'      => $url,
+        ],
+    ]);
     exit;
 }
 

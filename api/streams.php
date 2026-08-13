@@ -23,7 +23,7 @@ $scraper = $manager->detectSource($url);
 if (!$scraper) {
     $sourceParam = $_GET['source'] ?? null;
     if ($sourceParam) {
-        $scraper = $manager->getScraper($sourceParam);
+        $scraper = $manager->resolveSource($sourceParam);
     }
 }
 

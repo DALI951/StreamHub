@@ -21,14 +21,14 @@ if (empty($query)) {
 
 $manager = new SourceManager();
 
-$cached = Cache::getSearch($query);
+$cached = Cache::getSearch($query, $source ?? '');
 if ($cached) {
     echo json_encode(['results' => $cached, 'cached' => true]);
     exit;
 }
 
 if ($source) {
-    $scraper = $manager->getScraper($source);
+    $scraper = $manager->resolveSource($source);
     if ($scraper) {
         $results = $scraper->search($query);
     } else {
@@ -50,5 +50,5 @@ foreach ($results as $r) {
     }
 }
 
-Cache::setSearch($query, $unique);
+Cache::setSearch($query, $unique, null, $source ?? '');
 echo json_encode(['results' => $unique, 'cached' => false]);

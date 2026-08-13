@@ -1,10 +1,22 @@
 <?php
 class Cache {
     public static function getMetadata(string $url, string $source): ?array {
-        return Database::fetchOne(
+        $row = Database::fetchOne(
             "SELECT * FROM cache_metadata WHERE url = ? AND source = ? AND expires_at > NOW()",
             [$url, $source]
         );
+        if (!$row) return null;
+        if (!empty($row['extra_data'])) {
+            $extra = json_decode($row['extra_data'], true);
+            if (is_array($extra)) {
+                if (isset($extra['episodes'])) $row['episodes'] = $extra['episodes'];
+                if (isset($extra['extra'])) $row['extra'] = $extra['extra'];
+            }
+        }
+        if (!empty($row['seasons_data'])) {
+            $row['seasons'] = json_decode($row['seasons_data'], true);
+        }
+        return $row;
     }
 
     public static function setMetadata(string $url, string $source, array $data, ?int $ttl = null): void {
@@ -26,7 +38,10 @@ class Cache {
             'description'  => $data['description'] ?? null,
             'rating'       => $data['rating'] ?? null,
             'seasons_data' => isset($data['seasons']) ? json_encode($data['seasons']) : null,
-            'extra_data'   => isset($data['extra']) ? json_encode($data['extra']) : null,
+            'extra_data'   => json_encode(array_filter([
+                'episodes' => $data['episodes'] ?? null,
+                'extra'    => $data['extra'] ?? null,
+            ])),
             'expires_at'   => $expires,
         ]);
     }
@@ -60,8 +75,8 @@ class Cache {
         }
     }
 
-    public static function getSearch(string $query): ?array {
-        $hash = sha1(strtolower(trim($query)));
+    public static function getSearch(string $query, string $source = ''): ?array {
+        $hash = sha1(strtolower(trim($query)) . '|' . strtolower(trim($source)));
         $row = Database::fetchOne(
             "SELECT results FROM search_cache WHERE query_hash = ? AND expires_at > NOW()",
             [$hash]
@@ -69,10 +84,10 @@ class Cache {
         return $row ? json_decode($row['results'], true) : null;
     }
 
-    public static function setSearch(string $query, array $results, ?int $ttl = null): void {
+    public static function setSearch(string $query, array $results, ?int $ttl = null, string $source = ''): void {
         $config = require __DIR__ . '/../config.php';
         $ttl = $ttl ?? $config['cache']['search_ttl'];
-        $hash = sha1(strtolower(trim($query)));
+        $hash = sha1(strtolower(trim($query)) . '|' . strtolower(trim($source)));
         $expires = date('Y-m-d H:i:s', time() + $ttl);
 
         Database::insert('search_cache', [

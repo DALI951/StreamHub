@@ -10,13 +10,17 @@ function initPlayer(streamUrl, streamType, containerId) {
     if (streamType === 'iframe') {
         const iframe = document.createElement('iframe');
         iframe.src = streamUrl;
-        iframe.className = 'w-full rounded-lg bg-black';
-        iframe.style.width = '100%';
-        iframe.style.height = '70vh';
-        iframe.style.border = 'none';
-        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
-        iframe.allowFullscreen = true;
+        iframe.style.cssText = 'width:100%;height:75vh;border:none;border-radius:8px;display:block;background:#000;';
+        iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.setAttribute('mozallowfullscreen', 'true');
+        iframe.setAttribute('webkitallowfullscreen', 'true');
         container.appendChild(iframe);
+
+        container.ondblclick = () => {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else container.requestFullscreen().catch(() => {});
+        };
         return;
     }
 
@@ -25,8 +29,7 @@ function initPlayer(streamUrl, streamType, containerId) {
     video.controls = true;
     video.autoplay = true;
     video.playsInline = true;
-    video.className = 'w-full rounded-lg bg-black';
-    video.style.maxHeight = '70vh';
+    video.style.cssText = 'width:100%;max-height:75vh;background:#000;border-radius:8px;display:block;';
     container.appendChild(video);
 
     if (streamType === 'hls' || streamUrl.includes('.m3u8')) {
@@ -62,7 +65,8 @@ function initPlayer(streamUrl, streamType, containerId) {
 
 function addQualitySelector(hls, video) {
     if (!hls.levels || hls.levels.length <= 1) return;
-    const controls = video.parentElement;
+    const parent = video.parentElement;
+    parent.style.position = 'relative';
     const btn = document.createElement('button');
     btn.className = 'absolute top-2 right-2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-lg border border-white/20 hover:bg-red-600 transition z-10';
     btn.textContent = 'Auto';
@@ -78,8 +82,7 @@ function addQualitySelector(hls, video) {
             btn.textContent = levels[next].height + 'p';
         }
     };
-    controls.style.position = 'relative';
-    controls.appendChild(btn);
+    parent.appendChild(btn);
 }
 
 function destroyPlayer() {

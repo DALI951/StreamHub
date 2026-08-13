@@ -71,6 +71,10 @@ class EgyDeadScraper extends BaseScraper {
         elseif (preg_match('#/season/#i', $url))  $type = 'season';
         elseif (preg_match('#/episode/#i', $url)) $type = 'episode';
 
+        $isHomepage = false;
+        if (preg_match('/og:image["\s]+content="[^"]*EgyDead-Logo/i', $html)) $isHomepage = true;
+        if (preg_match('/<title>\s*ايجي\s+ديد\s*$/im', $html)) $isHomepage = true;
+
         $seasons = [];
         if ($type === 'series') {
             preg_match_all('/<a[^>]+href="([^"]*\/season\/[^"]*)"[^>]*>.*?<\/a>/si', $html, $sMatches);
@@ -89,21 +93,35 @@ class EgyDeadScraper extends BaseScraper {
         }
 
         $episodes = [];
-        if ($type === 'season') {
+        if ($type === 'season' && !$isHomepage) {
             preg_match_all('/<a\s+href="([^"]*\/episode\/[^"]*)"[^>]*>\s*(.*?حلقه.*?)\s*<\/a>/ui', $html, $epMatches);
             if (empty($epMatches[1])) {
                 preg_match_all('/<a\s+href="([^"]*\/episode\/[^"]*)"[^>]*>(.*?)<\/a>/si', $html, $epMatches);
             }
+            $seenEps = [];
             for ($i = 0; $i < count($epMatches[1]); $i++) {
                 $epUrl = $this->toAbsolute(htmlspecialchars_decode($epMatches[1][$i]));
+                $epHost = parse_url($epUrl, PHP_URL_HOST);
+                if ($epHost !== parse_url($this->baseUrl, PHP_URL_HOST)) continue;
                 $text = $this->cleanText(strip_tags($epMatches[2][$i]));
                 $epNum = $i + 1;
                 if (preg_match('/(\d+)/', $text, $nm)) $epNum = (int) $nm[1];
+                if (in_array($epUrl, $seenEps)) continue;
+                $seenEps[] = $epUrl;
                 $episodes[] = [
                     'number' => $epNum,
                     'url'    => $epUrl,
                     'title'  => $text,
                 ];
+            }
+        }
+
+        if ($type === 'season' && $isHomepage) {
+            $episodes = $this->findEpisodesForSeason($url);
+            if (!empty($episodes)) {
+                $seasonSlug = parse_url($url, PHP_URL_PATH);
+                $seasonSlug = basename(rtrim($seasonSlug, '/'));
+                $title = $this->cleanText(str_replace(['مسلسل-', 'اموسم-', 'الموسم-', 'مترجم', 'كامل', '-'], ' ', urldecode($seasonSlug)));
             }
         }
 
@@ -121,6 +139,75 @@ class EgyDeadScraper extends BaseScraper {
 
         Cache::setMetadata($url, 'egydead', $data);
         return $data;
+    }
+
+    private function findEpisodesForSeason(string $seasonUrl): array {
+        $path = parse_url($seasonUrl, PHP_URL_PATH);
+        $slug = urldecode(basename(rtrim($path, '/')));
+        $host = parse_url($this->baseUrl, PHP_URL_HOST);
+
+        $englishName = '';
+        if (preg_match('/^مسلسل-([a-zA-Z0-9-]+)/', $slug, $nm)) {
+            $englishName = strtolower($nm[1]);
+        }
+        if (!$englishName) return [];
+
+        $normalizedSlug = str_replace(['اموسم', 'اموسم-'], ['الموسم', 'الموسم-'], $slug);
+        $seasonPart = '';
+        if (preg_match('/(موسم[^-]*(?:-(?!مترجم|مدبلج)[^-]+)*)/', $normalizedSlug, $sm)) {
+            $seasonPart = $sm[1];
+        }
+        $cleanSlug = preg_replace('/-(مترجم|مدبلج)-.*$/', '', $normalizedSlug);
+        $searchQuery = str_replace('-', ' ', $cleanSlug);
+        $searchQuery = preg_replace('/\s+/', ' ', trim($searchQuery));
+        $searchUrl = $this->baseUrl . '/?s=' . urlencode($searchQuery);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $searchUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_HTTPHEADER     => [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language: ar,en-US;q=0.9,en;q=0.8',
+            ],
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        ]);
+        $searchHtml = curl_exec($ch);
+        curl_close($ch);
+        if (!$searchHtml) return [];
+
+        $episodes = [];
+        $seen = [];
+        preg_match_all('/<li\s+class="movieItem">\s*<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>\s*<\/li>/si', $searchHtml, $matches);
+        for ($i = 0; $i < count($matches[1]); $i++) {
+            $epUrl = $this->toAbsolute(htmlspecialchars_decode($matches[1][$i]));
+            $epHost = parse_url($epUrl, PHP_URL_HOST);
+            if ($epHost !== $host) continue;
+            $epPath = parse_url($epUrl, PHP_URL_PATH);
+            $epSlug = urldecode(basename(rtrim($epPath, '/')));
+            if (!str_contains($epSlug, 'حلقه') && !str_contains($epSlug, 'الحلقة') && !preg_match('/s\d+e\d+/i', $epSlug)) continue;
+            if (!str_contains(strtolower($epSlug), $englishName)) continue;
+            if ($seasonPart && !str_contains($epSlug, $seasonPart)) continue;
+            if (in_array($epUrl, $seen)) continue;
+            $seen[] = $epUrl;
+            $text = '';
+            if (preg_match('/<h1\s+class="BottomTitle">(.*?)<\/h1>/si', $matches[2][$i], $tm)) {
+                $text = $this->cleanText($tm[1]);
+            }
+            $epNum = 0;
+            if (preg_match('/(\d+)/', $epSlug, $nm)) $epNum = (int) $nm[1];
+            if ($epNum === 0 && preg_match('/(\d+)/', $text, $nm)) $epNum = (int) $nm[1];
+            $episodes[] = [
+                'number' => $epNum,
+                'url'    => $epUrl,
+                'title'  => $text ?: "الحلقة {$epNum}",
+            ];
+        }
+        usort($episodes, fn($a, $b) => $a['number'] <=> $b['number']);
+        return $episodes;
     }
 
     public function getStreams(string $url): array {

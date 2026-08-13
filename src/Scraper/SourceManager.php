@@ -7,6 +7,7 @@ require_once __DIR__ . '/FaselHDScraper.php';
 require_once __DIR__ . '/MyCimaScraper.php';
 require_once __DIR__ . '/ArabSeedScraper.php';
 require_once __DIR__ . '/AkwamScraper.php';
+require_once __DIR__ . '/BlkomScraper.php';
 
 class SourceManager {
     private array $scrapers = [];
@@ -26,6 +27,7 @@ class SourceManager {
             'MyCimaScraper'    => MyCimaScraper::class,
             'ArabSeedScraper'  => ArabSeedScraper::class,
             'AkwamScraper'     => AkwamScraper::class,
+            'BlkomScraper'     => BlkomScraper::class,
         ];
         foreach ($this->config['sources'] as $name => $info) {
             $className = $info['class'] ?? null;
@@ -48,6 +50,35 @@ class SourceManager {
 
     public function getScraper(string $name): ?BaseScraper {
         return $this->scrapers[$name] ?? null;
+    }
+
+    public function resolveSource(string $source): ?BaseScraper {
+        $source = strtolower(trim($source));
+        if ($source === '') return null;
+
+        $scraper = $this->getScraper($source);
+        if ($scraper) return $scraper;
+
+        $candidates = [
+            $source,
+            preg_replace('/^tv\d+\./', '', $source),       // "tv8.egydead" -> "egydead"
+            preg_replace('/^www\./', '', $source),
+            preg_replace('/\.(live|com|net|ws|top|win|show|fan|tv)$/i', '', $source),
+        ];
+
+        foreach ($this->scrapers as $name => $s) {
+            $host = strtolower((string) parse_url($s->getBaseUrl(), PHP_URL_HOST));
+            $host = preg_replace('/^www\./', '', $host);
+            if ($host === '' || $host === null) continue;
+
+            foreach ($candidates as $cand) {
+                if ($cand === '' || $cand === null) continue;
+                if ($cand === $host || $cand === $name) return $s;
+                if (strpos($host, $cand . '.') === 0) return $s;   // host starts with candidate label(s)
+                if (strpos($cand, $host . '.') === 0) return $s;   // candidate is a mirror prefix of host
+            }
+        }
+        return null;
     }
 
     public function getAllScrapers(): array {
@@ -121,6 +152,7 @@ class SourceManager {
             'mycima'    => "{$base}/search/{$encoded}",
             'arabseed'  => "{$base}/search/{$encoded}",
             'akwam'     => "{$base}/search/{$encoded}",
+            'blkom'     => "{$base}/search?query={$encoded}&page=1",
         ];
 
         return $patterns[$scraper->getSourceName()] ?? "{$base}/?s={$encoded}";

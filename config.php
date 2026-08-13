@@ -25,5 +25,6 @@ return [
         'topcinema' => ['base' => 'https://topcinema.fan',       'class' => 'TopCinemaScraper',  'priority' => 5],
         'mycima'    => ['base' => 'https://mycima.win',          'class' => 'MyCimaScraper',     'priority' => 6],
         'arabseed'  => ['base' => 'https://arabseed.show',       'class' => 'ArabSeedScraper',   'priority' => 7],
+        'blkom'     => ['base' => 'http://103.155.92.42',         'class' => 'BlkomScraper',      'priority' => 8],
     ],
 ];
