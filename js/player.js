@@ -6,6 +6,7 @@ function initPlayer(streamUrl, streamType, containerId) {
     if (!container) return;
 
     container.innerHTML = '';
+    addFullscreenButton(container);
 
     if (streamType === 'iframe') {
         const iframe = document.createElement('iframe');
@@ -17,9 +18,9 @@ function initPlayer(streamUrl, streamType, containerId) {
         iframe.setAttribute('webkitallowfullscreen', 'true');
         container.appendChild(iframe);
 
-        container.ondblclick = () => {
-            if (document.fullscreenElement) document.exitFullscreen();
-            else container.requestFullscreen().catch(() => {});
+        container.ondblclick = (e) => {
+            e.preventDefault();
+            toggleFullscreen(container);
         };
         return;
     }
@@ -30,6 +31,10 @@ function initPlayer(streamUrl, streamType, containerId) {
     video.autoplay = true;
     video.playsInline = true;
     video.style.cssText = 'width:100%;max-height:75vh;background:#000;border-radius:8px;display:block;';
+    video.ondblclick = (e) => {
+        e.preventDefault();
+        toggleFullscreen(container);
+    };
     container.appendChild(video);
 
     if (streamType === 'hls' || streamUrl.includes('.m3u8')) {
@@ -85,6 +90,37 @@ function addQualitySelector(hls, video) {
         }
     };
     parent.appendChild(btn);
+}
+
+function toggleFullscreen(container) {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) exit.call(document).catch(() => {});
+        return;
+    }
+    const req = container.requestFullscreen || container.webkitRequestFullscreen;
+    if (req) {
+        const p = req.call(container);
+        if (p && p.catch) {
+            p.catch(() => {
+                const v = container.querySelector('video');
+                if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+            });
+        }
+    }
+}
+
+function addFullscreenButton(container) {
+    const btn = document.createElement('button');
+    btn.className = 'fs-btn';
+    btn.title = 'Fullscreen';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen(container);
+    });
+    container.appendChild(btn);
 }
 
 function destroyPlayer() {
