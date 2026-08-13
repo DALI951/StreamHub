@@ -13,6 +13,7 @@ $ref = trim($_GET['ref'] ?? '');
 $head = (($_SERVER['REQUEST_METHOD'] ?? '') === 'HEAD') || isset($_GET['head']);
 
 $isPlaylist = (bool)preg_match('/\.m3u8($|\?)/i', $url);
+$forceMpeg = isset($_GET['mpeg']);
 
 $headers = [
     'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -51,6 +52,47 @@ $err = curl_error($ch);
 $info = curl_getinfo($ch);
 curl_close($ch);
 
+// decimal-ASCII obfuscated playlist (EarnVids): decode before anything else
+$decodedPlaylist = decodeDecimalAscii((string)$body);
+if ($decodedPlaylist !== null && strpos($decodedPlaylist, '#EXTM3U') !== false) {
+    $body = $decodedPlaylist;
+    $isPlaylist = true;
+    $respHeaders['content-type'] = 'application/vnd.apple.mpegurl';
+}
+
+// PNG-wrapped TS segments (EarnVids -> tiktokcdn): strip the fake header
+$stripN = 0;
+if (!$isPlaylist) {
+    $clientRange = isset($_SERVER['HTTP_RANGE']);
+    if ($clientRange) {
+        // refetch full body so the PNG header is present to strip, then serve range locally
+        $ch2 = curl_init($url);
+        $h2 = [];
+        foreach ($headers as $h) {
+            if (stripos($h, 'Range:') !== 0) $h2[] = $h;
+        }
+        curl_setopt_array($ch2, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_HTTPHEADER     => $h2,
+        ]);
+        $body = curl_exec($ch2);
+        $info = curl_getinfo($ch2);
+        curl_close($ch2);
+    }
+    $stripped = stripPngWrap((string)$body);
+    $body = $stripped[0];
+    $stripN = $stripped[1];
+    if ($stripN > 0) {
+        $respHeaders['content-type'] = 'video/mp2t';
+        unset($respHeaders['content-range'], $respHeaders['content-length']);
+    }
+}
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
 header('Access-Control-Allow-Headers: Range, Referer');
@@ -84,18 +126,37 @@ if ($isPlaylist && !$body) {
 }
 
 if (!empty($respHeaders['content-type'])) header('Content-Type: ' . $respHeaders['content-type']);
-if (!empty($respHeaders['content-range'])) header('Content-Range: ' . $respHeaders['content-range']);
-if (!empty($respHeaders['content-length']) && !$isPlaylist) header('Content-Length: ' . $respHeaders['content-length']);
 if ($dl) {
     $name = basename(parse_url($url, PHP_URL_PATH)) ?: 'video.mp4';
     header('Content-Disposition: attachment; filename="' . $name . '"');
 }
+
 if ($isPlaylist) {
     if ($body) echo $body;
     else http_response_code(204);
     exit;
 }
-if (is_string($body)) echo $body;
+
+if (is_string($body)) {
+    $len = strlen($body);
+    if (!$isPlaylist && isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d+)-(\d*)/', $_SERVER['HTTP_RANGE'], $rm)) {
+        $start = (int)$rm[1];
+        $end = $rm[2] === '' ? $len - 1 : min((int)$rm[2], $len - 1);
+        if ($start > $end || $start >= $len) {
+            http_response_code(416);
+            header('Content-Range: bytes */' . $len);
+            exit;
+        }
+        http_response_code(206);
+        header('Accept-Ranges: bytes');
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . $len);
+        header('Content-Length: ' . ($end - $start + 1));
+        echo substr($body, $start, $end - $start + 1);
+        exit;
+    }
+    if ($stripN > 0) header('Content-Length: ' . $len);
+    echo $body;
+}
 exit;
 
 function rewritePlaylist(string $body, string $base, bool $dl, string $ref = ''): string {
@@ -121,6 +182,34 @@ function rewritePlaylist(string $body, string $base, bool $dl, string $ref = '')
         $out[] = 'api/proxy.php?url=' . rawurlencode($abs) . $q;
     }
     return implode("\n", $out);
+}
+
+function decodeDecimalAscii(string $body): ?string {
+    if (strncmp($body, "\xEF\xBB\xBF", 3) === 0) $body = substr($body, 3);
+    $t = trim($body);
+    if ($t === '' || !preg_match('#^[\d\s]+$#', $t)) return null;
+    $nums = preg_split('#\s+#', $t);
+    if (count($nums) < 10) return null;
+    $bytes = '';
+    foreach ($nums as $n) {
+        if ($n === '') continue;
+        $bytes .= chr((int)$n & 0xFF);
+    }
+    return $bytes;
+}
+
+function stripPngWrap(string $body): array {
+    // returns [strippedBody, strippedBytes] ; null if not PNG-wrapped
+    if (strlen($body) < 80) return [$body, 0];
+    if (strncmp($body, "\x89PNG\r\n\x1a\n", 8) !== 0) return [$body, 0];
+    $limit = min(strlen($body), 8192);
+    for ($i = 8; $i < $limit; $i++) {
+        if (ord($body[$i]) !== 0x47) continue;
+        if ($i + 376 < strlen($body) && ord($body[$i + 188]) === 0x47 && ord($body[$i + 376]) === 0x47) {
+            return [substr($body, $i), $i];
+        }
+    }
+    return [$body, 0];
 }
 
 function resolveUrl(string $base, string $u): string {

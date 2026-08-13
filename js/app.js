@@ -181,7 +181,7 @@ function renderResults(results) {
              onclick="navigateTo('detail', '${r.url.replace(/'/g, "\\'")}'  )">
             <div class="relative rounded-lg overflow-hidden bg-gray-900 aspect-[2/3]">
                 ${r.poster ? `<img src="${imgUrl(r.poster)}" alt="${r.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">` :
-                    `<div class="w-full h-full flex items-center justify-center text-gray-700 text-4xl">ðŸŽ¬</div>`}
+                    `<div class="w-full h-full flex items-center justify-center"><svg class="w-10 h-10 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
                 <div class="poster-gradient absolute inset-0"></div>
                 <div class="play-overlay">
                     <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -257,7 +257,7 @@ function renderDetail(d) {
                 <div class="flex flex-col md:flex-row gap-8 mb-8">
                     <div class="w-full md:w-72 flex-shrink-0">
                         ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center"><svg class="w-16 h-16 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
@@ -268,11 +268,11 @@ function renderDetail(d) {
                 <h2 class="text-xl font-bold mb-4">${t('episodes')} (${d.episodes.length})</h2>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     ${d.episodes.map((ep, i) => `
-                        <button onclick="navigateTo('watch', '${ep.url.replace(/'/g, "\\'")}'  )"
+<button onclick="navigateTo('watch', '${ep.url.replace(/'/g, "\\'")}'  )"
                             class="episode-btn bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
                             style="animation-delay:${i * 20}ms">
-                            <div class="text-2xl mb-2">â–¶</div>
-                            <span class="text-sm font-medium">${t('episode')} ${ep.number}</span>
+                            <span class="text-2xl font-bold text-red-500">${ep.number}</span>
+                            <span class="text-xs text-gray-500 mt-1 block">${t('episode')}</span>
                         </button>
                     `).join('')}
                 </div>
@@ -288,7 +288,7 @@ function renderDetail(d) {
                 <div class="flex flex-col md:flex-row gap-8 mb-8">
                     <div class="w-full md:w-72 flex-shrink-0">
                         ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center"><svg class="w-16 h-16 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
@@ -301,11 +301,11 @@ function renderDetail(d) {
                     ${d.seasons.map((s, i) => {
                         const sn = extractSeasonName(s.url) || (i + 1);
                         return `
-                        <button onclick="navigateTo('detail', '${s.url.replace(/'/g, "\\'")}'  )"
+<button onclick="navigateTo('detail', '${s.url.replace(/'/g, "\\'")}'  )"
                             class="episode-btn bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
                             style="animation-delay:${i * 20}ms">
-                            <div class="text-2xl mb-2">ðŸ“</div>
-                            <span class="text-sm font-medium">${t('season')} ${sn}</span>
+                            <span class="text-2xl font-bold text-red-500">${sn}</span>
+                            <span class="text-xs text-gray-500 mt-1 block">${t('season')}</span>
                         </button>`;
                     }).join('')}
                 </div>
@@ -321,7 +321,7 @@ function renderDetail(d) {
                 <div class="flex flex-col md:flex-row gap-8">
                     <div class="w-full md:w-72 flex-shrink-0">
                         ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center"><svg class="w-16 h-16 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
@@ -394,18 +394,45 @@ async function showWatch(url, title) {
         `;
 
         window._streams = streams;
+        window._unwrapped = {};
         window._watchPageUrl = url;
         window._watchTitle = title || '';
-        initPlayer(bestStream.stream_type === 'hls' || bestStream.stream_type === 'mp4'
-            ? window.Installer ? Installer.proxify(bestStream.stream_url, bestStream.referer) : bestStream.stream_url
-            : bestStream.stream_url,
-            bestStream.stream_type, 'playerContainer');
+
+        const u = await tryUnwrap(bestStream, 0);
+        const playable = u || bestStream;
+        const playerUrl = playable.isUnwrapped
+            ? playable.stream_url
+            : (playable.stream_type === 'hls' || playable.stream_type === 'mp4')
+                ? (window.Installer ? Installer.proxify(playable.stream_url, playable.referer) : playable.stream_url)
+                : playable.stream_url;
+        initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
-        startInstaller(bestStream, url, title);
+        startInstaller(playable, url, title);
     } catch (e) {
         app.innerHTML = `<div class="text-center py-20 text-gray-500">Error loading streams</div>`;
     }
     hideLoading();
+}
+
+async function tryUnwrap(stream, index) {
+    if (stream.stream_type !== 'iframe') return null;
+    if (window._unwrapped && window._unwrapped[index]) return window._unwrapped[index];
+    try {
+        const res = await fetch(`api/unwrap.php?url=${encodeURIComponent(stream.stream_url)}`);
+        const data = await res.json();
+        if (!data.ok) return null;
+        const out = {
+            ...stream,
+            stream_type: data.type,
+            stream_url: data.url,
+            quality_label: stream.quality_label || 'Auto',
+            isUnwrapped: true,
+        };
+        if (window._unwrapped) window._unwrapped[index] = out;
+        return out;
+    } catch (e) {
+        return null;
+    }
 }
 
 function startInstaller(stream, pageUrl, title) {
@@ -415,9 +442,12 @@ function startInstaller(stream, pageUrl, title) {
         Installer.notAvailable(container);
         return;
     }
+    const realUrl = stream.isUnwrapped && window.Installer
+        ? (Installer.deproxify ? Installer.deproxify(stream.stream_url) : stream.stream_url)
+        : stream.stream_url;
     if (stream.stream_type === 'hls') {
         Installer.attachHls(hlsInstance, {
-            originalUrl: stream.stream_url,
+            originalUrl: realUrl,
             ref: stream.referer || '',
             title: title || 'episode',
             streamType: 'hls',
@@ -425,7 +455,7 @@ function startInstaller(stream, pageUrl, title) {
         });
     } else if (stream.stream_type === 'mp4') {
         Installer.attach({
-            originalUrl: stream.stream_url,
+            originalUrl: realUrl,
             ref: stream.referer || '',
             title: title || 'episode',
             streamType: 'mp4',
@@ -438,12 +468,19 @@ function switchStream(index) {
     const stream = window._streams[index];
     if (!stream) return;
     if (window.Installer) Installer.stop();
-    initPlayer(stream.stream_type === 'hls' || stream.stream_type === 'mp4'
-        ? window.Installer ? Installer.proxify(stream.stream_url, stream.referer) : stream.stream_url
-        : stream.stream_url,
-        stream.stream_type, 'playerContainer');
-    restoreSubtitles(document.getElementById('videoPlayer'));
-    startInstaller(stream, window._watchPageUrl || '', window._watchTitle || '');
+    const container = document.getElementById('playerContainer');
+    container.innerHTML = '<div class="stream-loading"></div>';
+    tryUnwrap(stream, index).then((u) => {
+        const playable = u || stream;
+        const playerUrl = playable.isUnwrapped
+            ? playable.stream_url
+            : (playable.stream_type === 'hls' || playable.stream_type === 'mp4')
+                ? (window.Installer ? Installer.proxify(playable.stream_url, playable.referer) : playable.stream_url)
+                : playable.stream_url;
+        initPlayer(playerUrl, playable.stream_type, 'playerContainer');
+        restoreSubtitles(document.getElementById('videoPlayer'));
+        startInstaller(playable, window._watchPageUrl || '', window._watchTitle || '');
+    });
     document.querySelectorAll('.stream-btn').forEach((btn, i) => {
         btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
     });
