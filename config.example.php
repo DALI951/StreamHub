@@ -2,9 +2,9 @@
 return [
     'db' => [
         'host' => 'localhost',
-        'name' => 'modalidb',
-        'user' => 'modali',
-        'pass' => 'waFS6FtEt5Qm1H94!#',
+        'name' => 'CHANGE_ME',
+        'user' => 'CHANGE_ME',
+        'pass' => 'CHANGE_ME',
         'charset' => 'utf8mb4',
     ],
     'cache' => [

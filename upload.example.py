@@ -2,10 +2,10 @@ import paramiko
 import os
 import sys
 
-HOST = "212.227.215.235"
+HOST = "CHANGE_ME"
 PORT = 22
-USER = "modali"
-PASS = "Hp9conDIhfVuBtxY"
+USER = "CHANGE_ME"
+PASS = "CHANGE_ME"
 REMOTE_BASE = "/public_html/streamhub"
 LOCAL_BASE = r"C:\Users\dali\streamhub"
 
