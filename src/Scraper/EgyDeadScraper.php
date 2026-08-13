@@ -225,7 +225,7 @@ class EgyDeadScraper extends BaseScraper {
             for ($i = 0; $i < count($serverMatches[1]); $i++) {
                 $iframeUrl = $this->toAbsolute(htmlspecialchars_decode($serverMatches[1][$i]));
                 $serverName = $this->cleanText($serverMatches[2][$i]);
-                $resolved = $this->resolveIframe($iframeUrl, $serverName);
+                $resolved = $this->resolveIframe($iframeUrl, $serverName, $url);
                 if ($resolved) $streams[] = $resolved;
             }
         }
@@ -234,7 +234,7 @@ class EgyDeadScraper extends BaseScraper {
             $iframes = $this->extractIframes($html);
             foreach ($iframes as $iframeUrl) {
                 $iframeUrl = $this->toAbsolute($iframeUrl);
-                $resolved = $this->resolveIframe($iframeUrl);
+                $resolved = $this->resolveIframe($iframeUrl, '', $url);
                 if ($resolved) $streams[] = $resolved;
             }
         }
@@ -272,8 +272,8 @@ class EgyDeadScraper extends BaseScraper {
         return $response;
     }
 
-    private function resolveIframe(string $url, string $serverName = ''): ?array {
-        $html = $this->fetch($url, [], $url);
+    private function resolveIframe(string $url, string $serverName = '', ?string $referer = null): ?array {
+        $html = $this->fetch($url, [], $referer ?: $url);
         if (!$html) return null;
 
         $packerBlocks = $this->extractPackerBlocks($html);
@@ -287,13 +287,13 @@ class EgyDeadScraper extends BaseScraper {
         $urlChar = '[^\s"\'<>\[\]]';
         foreach ($texts as $text) {
             // Match standard http/https URLs with video extensions
-            preg_match_all("#(https?://{$urlChar}+\.(?:m3u8|mp4){urlChar}*)#i", $text, $m);
+            preg_match_all("#(https?://{$urlChar}+\.(?:m3u8|mp4){$urlChar}*)#i", $text, $m);
             foreach ($m[1] as $streamUrl) {
                 $streamUrl = str_replace('\\/', '/', $streamUrl);
                 if (!in_array($streamUrl, $found)) $found[] = $streamUrl;
             }
             // Match protocol-relative URLs (//domain.com/...)
-            preg_match_all("#(//{$urlChar}+\.(?:m3u8|mp4){urlChar}*)#i", $text, $m);
+            preg_match_all("#(//{$urlChar}+\.(?:m3u8|mp4){$urlChar}*)#i", $text, $m);
             foreach ($m[1] as $streamUrl) {
                 $streamUrl = 'https:' . str_replace('\\/', '/', $streamUrl);
                 if (!in_array($streamUrl, $found)) $found[] = $streamUrl;
@@ -335,12 +335,26 @@ class EgyDeadScraper extends BaseScraper {
             $quality = null;
             if (preg_match('/(\d{3,4})p/', $streamUrl, $m)) $quality = $m[1];
 
+            if ($type === 'hls' && $quality === null) {
+                $master = $this->fetch($streamUrl, [], $referer ?: $url);
+                if ($master && preg_match_all('/RESOLUTION=(\d+)x(\d+)/', $master, $rm)) {
+                    $maxW = 0;
+                    foreach ($rm[1] as $i => $w) {
+                        if ((int)$w > $maxW) $maxW = (int)$w;
+                    }
+                    if ($maxW >= 1920) $quality = 1080;
+                    elseif ($maxW >= 1280) $quality = 720;
+                    elseif ($maxW >= 854) $quality = 480;
+                    elseif ($maxW >= 640) $quality = 360;
+                }
+            }
+
             return [
                 'stream_url'    => $streamUrl,
                 'stream_type'   => $type,
                 'quality'       => $quality,
                 'quality_label' => $quality ? "{$quality}p" : null,
-                'referer'       => $url,
+                'referer'       => $referer ?: $url,
                 'server_name'   => $serverName ?: 'EgyDead',
             ];
         }

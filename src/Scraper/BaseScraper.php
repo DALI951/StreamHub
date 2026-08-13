@@ -3,6 +3,7 @@ abstract class BaseScraper {
     protected string $baseUrl;
     protected string $sourceName;
     protected int $timeout;
+    public int $priority = 99;
 
     public function __construct(string $baseUrl, string $sourceName) {
         $this->baseUrl    = rtrim($baseUrl, '/');
@@ -86,13 +87,13 @@ abstract class BaseScraper {
             foreach ($starts[0] as $start) {
                 $offset = $start[1] + strlen($start[0]);
                 $rest = substr($html, $offset);
-                if (preg_match('/\}\(/', $rest, $bodyEnd, PREG_OFFSET_CAPTURE)) {
+                if (preg_match('/\}\(\'/', $rest, $bodyEnd, PREG_OFFSET_CAPTURE)) {
                     $argsStart = $offset + $bodyEnd[0][1] + 2;
                     $argsStr = substr($html, $argsStart);
                     if (preg_match('/^\'((?:[^\'\\\\]|\\\\.)*)\'/', $argsStr, $payloadMatch)) {
                         $payloadEnd = $argsStart + strlen($payloadMatch[0]);
                         $remaining = substr($html, $payloadEnd);
-                        if (preg_match('/\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\'([^\']+)\'(?:\.split\(\'\|\'\))?\s*,\s*\d+\s*,\s*\{\}\s*\)\s*\)/', $remaining, $restMatch)) {
+                        if (preg_match('/\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\'([^\']+)\'(?:\.split\(\'\|\'\))?\s*(?:,\s*\d+\s*,\s*\{\}\s*\)\s*\)|\)\s*\))\s*\)?/', $remaining, $restMatch)) {
                             $fullEnd = $payloadEnd + strlen($restMatch[0]);
                             $blocks[] = substr($html, $start[1], $fullEnd - $start[1]);
                         }
@@ -106,16 +107,16 @@ abstract class BaseScraper {
     protected function decodePacker(string $code): string {
         $pattern = '/eval\(function\(p,a,c,k,e,d\)\{/si';
         if (preg_match($pattern, $code, $startMatch, PREG_OFFSET_CAPTURE)) {
-            $offset = $startMatch[1] + strlen($startMatch[0]);
+            $offset = $startMatch[0][1] + strlen($startMatch[0][0]);
             $rest = substr($code, $offset);
-            if (preg_match('/\}\(/', $rest, $bodyEnd, PREG_OFFSET_CAPTURE)) {
+            if (preg_match('/\}\(\'/', $rest, $bodyEnd, PREG_OFFSET_CAPTURE)) {
                 $argsStart = $offset + $bodyEnd[0][1] + 2;
                 $argsStr = substr($code, $argsStart);
                 if (preg_match('/^\'((?:[^\'\\\\]|\\\\.)*)\'/', $argsStr, $payloadMatch)) {
                     $payload = $payloadMatch[1];
                     $payloadEnd = $argsStart + strlen($payloadMatch[0]);
                     $remaining = substr($code, $payloadEnd);
-                    if (preg_match('/\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\'([^\']+)\'(?:\.split\(\'\|\'\))?\s*,\s*\d+\s*,\s*\{\}\s*\)/', $remaining, $restMatch)) {
+                    if (preg_match('/\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\'([^\']+)\'(?:\.split\(\'\|\'\))?\s*(?:,\s*\d+\s*,\s*\{\}\s*\)\s*\)|\)\s*\))/', $remaining, $restMatch)) {
                         $base  = (int)$restMatch[1];
                         $count = (int)$restMatch[2];
                         $dict  = $restMatch[3];

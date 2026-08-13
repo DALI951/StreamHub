@@ -19,7 +19,7 @@ function initPlayer(streamUrl, streamType, containerId) {
 
         container.ondblclick = (e) => {
             e.preventDefault();
-            toggleFullscreen(iframe);
+            toggleFullscreen(container);
         };
         addFullscreenButton(container);
         addSubtitleButton(container, true);
@@ -86,6 +86,8 @@ const ICONS = {
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     cc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M13 15h4M7 11h2M11 11h6"/></svg>',
     spinner: '<svg class="pc-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>',
+    crop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
 };
 
 function buildPlayerChrome(video, container) {
@@ -103,20 +105,24 @@ function buildPlayerChrome(video, container) {
             <span>StreamHub Player</span>
         </div>
         <div class="pc-bigplay" title="${tt('player_play', 'Play')}">${ICONS.play}</div>
-        <div class="pc-loading">${ICONS.spinner}</div>
+        <div class="pc-loading">${ICONS.spinner}<span>${tt('loading', 'Loading...')}</span></div>
         <div class="pc-controls">
-            <button class="pc-btn pc-play" title="${tt('player_play', 'Play')}">${ICONS.play}</button>
-            <div class="pc-seek">
-                <div class="pc-buffer"></div>
-                <div class="pc-progress"></div>
-                <div class="pc-scrub"></div>
+            <div class="pc-seek-row">
+                <div class="pc-seek">
+                    <div class="pc-buffer"></div>
+                    <div class="pc-progress"></div>
+                    <div class="pc-scrub"></div>
+                </div>
+                <span class="pc-hover-time"></span>
             </div>
-            <span class="pc-time">0:00 / 0:00</span>
-            <div class="pc-group">
+            <div class="pc-buttons">
+                <button class="pc-btn pc-play" title="${tt('player_play', 'Play')}">${ICONS.play}</button>
                 <button class="pc-btn pc-mute" title="${tt('player_mute', 'Mute')}">${ICONS.vol}</button>
                 <input type="range" class="pc-vol" min="0" max="100" value="100">
-                <button class="pc-btn pc-speed" title="${tt('player_speed', 'Playback speed')}">1x</button>
-                <button class="pc-btn pc-quality" style="display:none" title="${tt('player_quality', 'Quality')}">Auto</button>
+                <span class="pc-time">0:00 / 0:00</span>
+                <div class="pc-spacer"></div>
+                <button class="pc-btn pc-crop" title="${tt('player_crop', 'Remove watermark (crop)')}">${ICONS.crop}</button>
+                <button class="pc-btn pc-settings" title="${tt('player_settings', 'Settings')}">${ICONS.gear}</button>
                 <button class="pc-btn pc-cc" title="${tt('player_cc', 'Subtitles')}">${ICONS.cc}</button>
                 <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
             </div>
@@ -132,12 +138,18 @@ function buildPlayerChrome(video, container) {
     const progress = chrome.querySelector('.pc-progress');
     const scrub = chrome.querySelector('.pc-scrub');
     const timeEl = chrome.querySelector('.pc-time');
+    const hoverTime = chrome.querySelector('.pc-hover-time');
     const muteBtn = chrome.querySelector('.pc-mute');
     const volRange = chrome.querySelector('.pc-vol');
-    const speedBtn = chrome.querySelector('.pc-speed');
-    const qualityBtn = chrome.querySelector('.pc-quality');
+    const cropBtn = chrome.querySelector('.pc-crop');
+    const settingsBtn = chrome.querySelector('.pc-settings');
     const ccBtn = chrome.querySelector('.pc-cc');
     const fsBtn = chrome.querySelector('.pc-fs');
+
+    if (localStorage.getItem('pc_crop') === '1') {
+        container.classList.add('pc-cropped');
+        cropBtn.classList.add('pc-active');
+    }
 
     const fmt = (s) => {
         if (!isFinite(s)) s = 0;
@@ -160,6 +172,8 @@ function buildPlayerChrome(video, container) {
         clearTimeout(hideTimer);
         if (!video.paused) {
             hideTimer = setTimeout(() => {
+                const menu = container.querySelector('.pc-menu');
+                if (menu && menu.classList.contains('pc-open')) return;
                 chrome.classList.remove('pc-visible');
                 container.classList.add('pc-idle');
             }, 2500);
@@ -179,6 +193,7 @@ function buildPlayerChrome(video, container) {
     video.addEventListener('click', () => { if (container.classList.contains('pc-visible')) togglePlay(); });
     container.addEventListener('mousemove', showChrome);
     container.addEventListener('touchstart', showChrome, { passive: true });
+    container.addEventListener('dblclick', () => toggleFullscreen(container));
 
     video.addEventListener('timeupdate', () => {
         const d = video.duration || 0;
@@ -216,7 +231,17 @@ function buildPlayerChrome(video, container) {
         if (video.duration) video.currentTime = pct * video.duration;
     };
     seek.addEventListener('click', (e) => seekTo(e.clientX));
-    seek.addEventListener('mousemove', (e) => { if (seeking) seekTo(e.clientX); });
+    seek.addEventListener('mousemove', (e) => {
+        const rect = seek.getBoundingClientRect();
+        const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        if (video.duration) {
+            hoverTime.textContent = fmt(pct * video.duration);
+            hoverTime.style.display = 'block';
+            hoverTime.style.left = pct * 100 + '%';
+        }
+        if (seeking) seekTo(e.clientX);
+    });
+    seek.addEventListener('mouseleave', () => { hoverTime.style.display = 'none'; });
     seek.addEventListener('touchstart', (e) => { seeking = true; seekTo(e.touches[0].clientX); }, { passive: true });
     seek.addEventListener('touchmove', (e) => { seekTo(e.touches[0].clientX); }, { passive: true });
     seek.addEventListener('touchend', () => { seeking = false; });
@@ -243,16 +268,27 @@ function buildPlayerChrome(video, container) {
         muteBtn.innerHTML = video.volume === 0 ? ICONS.mute : ICONS.vol;
     });
 
-    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-    speedBtn.onclick = () => {
-        const next = speeds[(speeds.indexOf(video.playbackRate) + 1) % speeds.length];
-        video.playbackRate = next;
-        speedBtn.textContent = next + 'x';
-        speedBtn.classList.add('pc-active');
-        setTimeout(() => speedBtn.classList.remove('pc-active'), 300);
+    cropBtn.onclick = () => {
+        const on = container.classList.toggle('pc-cropped');
+        localStorage.setItem('pc_crop', on ? '1' : '0');
+        cropBtn.classList.toggle('pc-active', on);
+        showChrome();
     };
 
-    fsBtn.onclick = () => toggleFullscreen(video);
+    settingsBtn.onclick = (e) => {
+        e.stopPropagation();
+        const menu = getSettingsMenu();
+        menu.classList.toggle('pc-open');
+        showChrome();
+    };
+    document.addEventListener('click', (e) => {
+        const menu = container.querySelector('.pc-menu');
+        if (menu && menu.classList.contains('pc-open') && !menu.contains(e.target) && e.target !== settingsBtn) {
+            menu.classList.remove('pc-open');
+        }
+    });
+
+    fsBtn.onclick = () => toggleFullscreen(container);
 
     ccBtn.onclick = (e) => {
         e.stopPropagation();
@@ -266,7 +302,8 @@ function buildPlayerChrome(video, container) {
     document.addEventListener('keydown', (e) => {
         const active = document.activeElement;
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-        if (!container.isConnected || document.fullscreenElement !== video && !container.contains(document.fullscreenElement)) return;
+        if (!container.isConnected) return;
+        if (document.fullscreenElement && !container.contains(document.fullscreenElement)) return;
         switch (e.key.toLowerCase()) {
             case ' ':
             case 'k':
@@ -293,7 +330,7 @@ function buildPlayerChrome(video, container) {
                 video.muted = !video.muted;
                 break;
             case 'f':
-                toggleFullscreen(video);
+                toggleFullscreen(container);
                 break;
         }
     });
@@ -304,25 +341,54 @@ function buildPlayerChrome(video, container) {
     showChrome();
 }
 
+function getSettingsMenu() {
+    const container = document.querySelector('.pc-root');
+    if (!container) return null;
+    let menu = container.querySelector('.pc-menu');
+    if (!menu) {
+        menu = document.createElement('div');
+        menu.className = 'pc-menu';
+        container.appendChild(menu);
+    }
+    const video = document.getElementById('videoPlayer');
+    const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
+    const hls = window._pcHls;
+    let html = `<div class="pc-menu-sec">${tt('player_quality', 'Quality')}</div><div class="pc-menu-list">`;
+    const curQ = hls ? hls.currentLevel : -1;
+    html += `<button class="pc-menu-item ${curQ === -1 ? 'pc-on' : ''}" data-q="-1"><span>Auto${hls && hls.autoLevelEnabled && hls.levels.length > 1 ? ' · ' + hls.levels[hls.currentLevel]?.height + 'p' : ''}</span><i>${ICONS.check}</i></button>`;
+    if (hls && hls.levels && hls.levels.length > 1) {
+        hls.levels.forEach((lvl, i) => {
+            html += `<button class="pc-menu-item ${curQ === i ? 'pc-on' : ''}" data-q="${i}"><span>${lvl.height || 'HD'}p${lvl.bitrate ? ' <em>' + Math.round(lvl.bitrate / 1000) + ' kbps</em>' : ''}</span><i>${ICONS.check}</i></button>`;
+        });
+    } else {
+        html += `<button class="pc-menu-item pc-disabled" data-q="-2"><span>${hls ? tt('player_quality', 'Quality') : 'Source'}</span><i>${ICONS.check}</i></button>`;
+    }
+    html += `</div><div class="pc-menu-sec">${tt('player_speed', 'Playback speed')}</div><div class="pc-menu-list">`;
+    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    speeds.forEach((s) => {
+        html += `<button class="pc-menu-item ${Math.abs((video ? video.playbackRate : 1) - s) < 0.01 ? 'pc-on' : ''}" data-s="${s}"><span>${s}x</span><i>${ICONS.check}</i></button>`;
+    });
+    html += `</div>`;
+    menu.innerHTML = html;
+    menu.querySelectorAll('[data-q]').forEach((b) => {
+        b.onclick = () => {
+            const i = parseInt(b.dataset.q, 10);
+            if (window._pcHls && i >= -1) window._pcHls.currentLevel = i;
+            getSettingsMenu();
+        };
+    });
+    menu.querySelectorAll('[data-s]').forEach((b) => {
+        b.onclick = () => {
+            const v = document.getElementById('videoPlayer');
+            if (v) v.playbackRate = parseFloat(b.dataset.s);
+            getSettingsMenu();
+        };
+    });
+    return menu;
+}
+
 function setupQualityMenu(hls) {
-    if (!hls.levels || hls.levels.length <= 1) return;
-    const btn = document.querySelector('.pc-quality');
-    if (!btn) return;
-    btn.style.display = '';
-    let idx = 0;
-    btn.onclick = () => {
-        const levels = hls.levels;
-        idx = (idx + 1) % (levels.length + 1);
-        if (idx === levels.length) {
-            hls.currentLevel = -1;
-            btn.textContent = 'Auto';
-        } else {
-            hls.currentLevel = idx;
-            btn.textContent = levels[idx].height + 'p';
-        }
-        btn.classList.add('pc-active');
-        setTimeout(() => btn.classList.remove('pc-active'), 300);
-    };
+    window._pcHls = hls;
 }
 
 function toggleFullscreen(el) {
@@ -349,8 +415,7 @@ function addFullscreenButton(container) {
     btn.innerHTML = ICONS.fs;
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const media = container.querySelector('video') || container.querySelector('iframe');
-        if (media) toggleFullscreen(media);
+        toggleFullscreen(container);
     });
     container.appendChild(btn);
 }

@@ -479,9 +479,17 @@ async function showWatch(url, title) {
         window._watchTitle = title || '';
 
         const unwrapped = await Promise.all(streams.map((s, i) => tryUnwrap(s, i)));
-        const firstOk = unwrapped.findIndex(Boolean);
-        const pick = firstOk >= 0 ? firstOk : 0;
+        const qval = (c) => { const m = (c.s.quality_label || '').match(/(\d{3,4})p/); return m ? parseInt(m[1], 10) : 0; };
+        const candidates = streams
+            .map((s, i) => ({ s, i, u: unwrapped[i], direct: !!(unwrapped[i]) || s.stream_type !== 'iframe' }))
+            .filter((c) => c.direct)
+            .sort((a, b) => (qval(b) - qval(a)) || a.i - b.i);
+        const fallback = streams.findIndex((s) => s.stream_type !== 'iframe');
+        const pick = candidates.length ? candidates[0].i : (fallback >= 0 ? fallback : 0);
         updateStreamBadges();
+        document.querySelectorAll('.stream-btn').forEach((btn, i) => {
+            btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === pick ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
+        });
         const playable = unwrapped[pick] || streams[pick];
         const playerUrl = playable.isUnwrapped
             ? playable.stream_url
@@ -489,7 +497,8 @@ async function showWatch(url, title) {
                 ? (window.Installer ? Installer.proxify(playable.stream_url, playable.referer) : playable.stream_url)
                 : playable.stream_url;
         if (pick !== 0) {
-            showToast(`${t('now_playing')}: ${t('server')} ${pick + 1} · ${unwrapped[pick] ? t('direct') : t('external')}`);
+            const q = streams[pick].quality_label ? ` · ${streams[pick].quality_label}` : '';
+            showToast(`${t('now_playing')}: ${t('server')} ${pick + 1}${q} · ${unwrapped[pick] || streams[pick].stream_type !== 'iframe' ? t('direct') : t('external')}`);
         }
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));

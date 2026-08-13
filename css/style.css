@@ -193,16 +193,21 @@ html[dir="rtl"] body {
 }
 
 .stream-video {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    max-height: 75vh;
+    height: 100%;
     background: #000;
     display: block;
     border-radius: 8px;
+    object-fit: contain;
 }
 
 .stream-frame {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 75vh;
+    height: 100%;
     border: none;
     display: block;
     background: #000;
@@ -213,6 +218,8 @@ html[dir="rtl"] body {
     position: relative;
     width: 100%;
     background: black;
+    aspect-ratio: 16 / 9;
+    max-height: 75vh;
 }
 
 .player-wrap:fullscreen,
@@ -422,8 +429,10 @@ input:focus-visible {
 }
 
 .stream-loading {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 75vh;
+    height: 100%;
     background: #000;
 }
 
@@ -514,15 +523,25 @@ input:focus-visible {
     transform: translate(-50%, -50%);
     color: #ef4444;
     display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.pc-loading span {
+    color: rgba(255,255,255,0.75);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
 }
 
 .pc-loading.pc-show {
-    display: block;
+    display: flex;
 }
 
 .pc-spin {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     animation: pc-rotate 0.9s linear infinite;
 }
 
@@ -536,11 +555,45 @@ input:focus-visible {
     right: 0;
     bottom: 0;
     display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 26px 6px 8px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+}
+
+.pc-seek-row {
+    position: relative;
+    display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 14px 10px;
-    padding-top: 26px;
-    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    padding: 2px 8px;
+}
+
+.pc-hover-time {
+    position: absolute;
+    bottom: 26px;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(3,7,18,0.9);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: none;
+    pointer-events: none;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.pc-buttons {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+}
+
+.pc-spacer {
+    flex: 1;
 }
 
 .pc-btn {
@@ -674,17 +727,143 @@ input:focus-visible {
     background: none;
 }
 
-.pc-group .sub-btn:hover {
+.pc-buttons .sub-btn {
+    position: static;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: none;
+}
+
+.pc-group .sub-btn:hover,
+.pc-buttons .sub-btn:hover {
     background: rgba(255,255,255,0.14);
 }
 
-.pc-group .sub-btn.sub-btn-disabled {
+.pc-group .sub-btn.sub-btn-disabled,
+.pc-buttons .sub-btn.sub-btn-disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
-.pc-group .sub-btn.sub-btn-disabled:hover {
+.pc-group .sub-btn.sub-btn-disabled:hover,
+.pc-buttons .sub-btn.sub-btn-disabled:hover {
     background: none;
+}
+
+/* ============ SETTINGS MENU ============ */
+
+.pc-menu {
+    position: absolute;
+    right: 12px;
+    bottom: 68px;
+    min-width: 200px;
+    background: rgba(8,10,18,0.96);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 8px;
+    z-index: 40;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+
+.pc-menu.pc-open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.pc-menu-sec {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #9ca3af;
+    padding: 8px 10px 4px;
+}
+
+.pc-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pc-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: #e5e7eb;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.pc-menu-item:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.pc-menu-item.pc-on {
+    color: #ef4444;
+}
+
+.pc-menu-item.pc-disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.pc-menu-item i {
+    font-style: normal;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    color: #ef4444;
+}
+
+.pc-menu-item.pc-on i {
+    opacity: 1;
+}
+
+.pc-menu-item i svg {
+    width: 14px;
+    height: 14px;
+}
+
+.pc-menu-item em {
+    font-style: normal;
+    color: #6b7280;
+    font-size: 11px;
+}
+
+[dir="rtl"] .pc-menu {
+    right: auto;
+    left: 12px;
+}
+
+[dir="rtl"] .pc-menu-item {
+    text-align: right;
+}
+
+/* ============ WATERMARK CROP ============ */
+
+.pc-cropped .stream-video {
+    transform: scale(1.15);
+    transform-origin: 100% 100%;
 }
 
 /* ============ PLAYER BRAND + TOAST + HOME ============ */
@@ -795,4 +974,10 @@ input:focus-visible {
 [dir="rtl"] .stream-btn .stream-dot {
     margin-left: 0;
     margin-right: 6px;
+}
+
+@media (max-width: 640px) {
+    .pc-vol {
+        display: none;
+    }
 }

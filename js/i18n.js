@@ -51,6 +51,8 @@ const I18N = {
         player_quality: "Quality",
         player_cc: "Subtitles",
         player_fullscreen: "Fullscreen",
+        player_crop: "Remove watermark (crop)",
+        player_settings: "Settings",
     },
     ar: {
         search_placeholder: "ابحث عن أفلام، مسلسلات، أنمي...",
@@ -104,6 +106,8 @@ const I18N = {
         player_quality: "الجودة",
         player_cc: "الترجمة",
         player_fullscreen: "ملء الشاشة",
+        player_crop: "إزالة العلامة المائية (قص)",
+        player_settings: "الإعدادات",
     }
 };
 
