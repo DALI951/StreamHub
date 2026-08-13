@@ -355,5 +355,18 @@ const Installer = (() => {
             if (bar) bar.remove();
         },
         isActive() { return !!current; },
+        async dbGetSubs(key) {
+            try {
+                await openDb();
+                const row = await idbGet('episodes', key);
+                return row && row.vtt ? row.vtt : null;
+            } catch (e) { return null; }
+        },
+        async dbPutSubs(key, vtt) {
+            try {
+                await openDb();
+                await idbPut('episodes', { id: key, vtt });
+            } catch (e) { }
+        },
     };
 })();

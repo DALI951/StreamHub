@@ -1,4 +1,4 @@
-const API_BASE = 'api';
+﻿const API_BASE = 'api';
 
 let appState = {
     currentView: 'home',
@@ -63,7 +63,7 @@ function handleHash() {
     const slug = rest;
 
     if (source && slug) {
-        const isEpisode = /الحلقة|حلقه|s\d+e\d+|episode|\/watch\//i.test(slug);
+        const isEpisode = /Ø§Ù„Ø­Ù„Ù‚Ø©|Ø­Ù„Ù‚Ù‡|s\d+e\d+|episode|\/watch\//i.test(slug);
         if (isEpisode) showWatchBySlug(source, slug);
         else showDetailBySlug(source, slug);
         return;
@@ -93,17 +93,25 @@ async function loadSources() {
     try {
         const res = await fetch(`${API_BASE}/sources.php`);
         const data = await res.json();
-        appState.sources = data.sources || [];
+        const DEAD = new Set(['faselhd', 'akwam', 'cima4u', 'topcinema', 'mycima', 'arabseed']);
+        appState.sources = (data.sources || []).filter(s => !DEAD.has(s.name));
         const select = document.getElementById('sourceSelect');
         select.innerHTML = `<option value="">${t('all_sources')}</option>`;
         appState.sources.forEach(s => {
-            select.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+            select.innerHTML += `<option value="${s.name}">${sourceLabel(s.name)}</option>`;
         });
     } catch (e) {}
 }
 
 function showLoading() { document.getElementById('loading').classList.remove('hidden'); }
 function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+
+const SOURCE_LABELS = {
+    egydead: 'Server 1', faselhd: 'Server 2', akwam: 'Server 3', cima4u: 'Server 4',
+    topcinema: 'Server 5', mycima: 'Server 6', arabseed: 'Server 7', blkom: 'Server 8',
+};
+const sourceLabel = (n) => SOURCE_LABELS[n] || 'Server';
+const imgUrl = (u) => u && !u.startsWith('api/') && !u.startsWith('data:') ? 'api/proxy.php?url=' + encodeURIComponent(u) : u;
 
 function showHome() {
     appState.currentView = 'home';
@@ -120,9 +128,7 @@ function showHome() {
                         onkeydown="if(event.key==='Enter'){navigateTo('search',this.value)}">
                 </div>
                 <div class="mt-8 flex flex-wrap gap-3 justify-center">
-                    ${appState.sources.map(s => `
-                        <button onclick="navigateTo('search','')" class="source-badge source-${s.name}">${s.name}</button>
-                    `).join('')}
+                    <span class="text-sm text-gray-500">${t('all_sources')}</span>
                 </div>
             </div>
         </div>
@@ -164,17 +170,23 @@ async function doSearch(query) {
 function renderResults(results) {
     const container = document.getElementById('results');
     if (!results.length) {
-        container.innerHTML = `<p class="text-gray-500 col-span-full text-center">${t('no_results')}</p>`;
+        container.innerHTML = `<div class="empty-state col-span-full">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <p>${t('no_results')}</p><p class="text-sm mt-1">${t('try_different')}</p>
+        </div>`;
         return;
     }
     container.innerHTML = results.map((r, i) => `
         <div class="card-hover cursor-pointer animate-in" style="animation-delay:${i * 30}ms"
              onclick="navigateTo('detail', '${r.url.replace(/'/g, "\\'")}'  )">
             <div class="relative rounded-lg overflow-hidden bg-gray-900 aspect-[2/3]">
-                ${r.poster ? `<img src="${r.poster}" alt="${r.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">` :
-                    `<div class="w-full h-full flex items-center justify-center text-gray-700 text-4xl">🎬</div>`}
+                ${r.poster ? `<img src="${imgUrl(r.poster)}" alt="${r.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">` :
+                    `<div class="w-full h-full flex items-center justify-center text-gray-700 text-4xl">ðŸŽ¬</div>`}
                 <div class="poster-gradient absolute inset-0"></div>
-                <span class="source-badge source-${r.source} absolute top-2 left-2">${r.source}</span>
+                <div class="play-overlay">
+                    <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <span class="source-badge absolute top-2 left-2">HD</span>
                 <div class="absolute bottom-0 left-0 right-0 p-3">
                     <h3 class="font-semibold text-sm line-clamp-2">${r.title}</h3>
                 </div>
@@ -186,9 +198,9 @@ function renderResults(results) {
 function extractSeasonName(url) {
     try {
         const slug = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || '');
-        const m = slug.match(/(?:اموسم|الموسم)[-_]([^-[\]]+)/);
+        const m = slug.match(/(?:Ø§Ù…ÙˆØ³Ù…|Ø§Ù„Ù…ÙˆØ³Ù…)[-_]([^-[\]]+)/);
         if (m) {
-            const names = {'الاول':'1','الثاني':'2','الثالث':'3','الرابع':'4','الخامس':'5','السادس':'6','السابع':'7','الثامن':'8','التاسع':'9','العاشر':'10'};
+            const names = {'Ø§Ù„Ø§ÙˆÙ„':'1','Ø§Ù„Ø«Ø§Ù†ÙŠ':'2','Ø§Ù„Ø«Ø§Ù„Ø«':'3','Ø§Ù„Ø±Ø§Ø¨Ø¹':'4','Ø§Ù„Ø®Ø§Ù…Ø³':'5','Ø§Ù„Ø³Ø§Ø¯Ø³':'6','Ø§Ù„Ø³Ø§Ø¨Ø¹':'7','Ø§Ù„Ø«Ø§Ù…Ù†':'8','Ø§Ù„ØªØ§Ø³Ø¹':'9','Ø§Ù„Ø¹Ø§Ø´Ø±':'10'};
             const arabic = m[1].trim();
             return names[arabic] || arabic;
         }
@@ -244,8 +256,8 @@ function renderDetail(d) {
                 </button>
                 <div class="flex flex-col md:flex-row gap-8 mb-8">
                     <div class="w-full md:w-72 flex-shrink-0">
-                        ${d.poster ? `<img src="${d.poster}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">🎬</div>`}
+                        ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
@@ -257,9 +269,9 @@ function renderDetail(d) {
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     ${d.episodes.map((ep, i) => `
                         <button onclick="navigateTo('watch', '${ep.url.replace(/'/g, "\\'")}'  )"
-                            class="bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
+                            class="episode-btn bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
                             style="animation-delay:${i * 20}ms">
-                            <div class="text-2xl mb-2">▶</div>
+                            <div class="text-2xl mb-2">â–¶</div>
                             <span class="text-sm font-medium">${t('episode')} ${ep.number}</span>
                         </button>
                     `).join('')}
@@ -275,12 +287,12 @@ function renderDetail(d) {
                 </button>
                 <div class="flex flex-col md:flex-row gap-8 mb-8">
                     <div class="w-full md:w-72 flex-shrink-0">
-                        ${d.poster ? `<img src="${d.poster}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">🎬</div>`}
+                        ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
-                        <span class="source-badge source-${d.source}">${d.source}</span>
+                        <span class="source-badge">HD</span>
                         ${d.description ? `<p class="text-gray-400 leading-relaxed mt-4">${d.description}</p>` : ''}
                     </div>
                 </div>
@@ -290,9 +302,9 @@ function renderDetail(d) {
                         const sn = extractSeasonName(s.url) || (i + 1);
                         return `
                         <button onclick="navigateTo('detail', '${s.url.replace(/'/g, "\\'")}'  )"
-                            class="bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
+                            class="episode-btn bg-gray-900 border border-gray-800 hover:border-red-500/50 rounded-xl p-4 text-center transition animate-in"
                             style="animation-delay:${i * 20}ms">
-                            <div class="text-2xl mb-2">📁</div>
+                            <div class="text-2xl mb-2">ðŸ“</div>
                             <span class="text-sm font-medium">${t('season')} ${sn}</span>
                         </button>`;
                     }).join('')}
@@ -308,13 +320,13 @@ function renderDetail(d) {
                 </button>
                 <div class="flex flex-col md:flex-row gap-8">
                     <div class="w-full md:w-72 flex-shrink-0">
-                        ${d.poster ? `<img src="${d.poster}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
-                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">🎬</div>`}
+                        ${d.poster ? `<img src="${imgUrl(d.poster)}" alt="${d.title}" class="w-full rounded-xl shadow-2xl">` :
+                            `<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl flex items-center justify-center text-6xl">ðŸŽ¬</div>`}
                     </div>
                     <div class="flex-1">
                         <h1 class="text-3xl font-bold mb-2">${d.title}</h1>
                         <div class="flex flex-wrap gap-2 mb-4">
-                            <span class="source-badge source-${d.source}">${d.source}</span>
+                            <span class="source-badge">HD</span>
                             <span class="text-xs px-2 py-1 bg-gray-800 rounded">${d.type === 'series' ? t('type_series') : t('type_movie')}</span>
                             ${d.year ? `<span class="text-xs px-2 py-1 bg-gray-800 rounded">${d.year}</span>` : ''}
                         </div>
@@ -364,7 +376,7 @@ async function showWatch(url, title) {
                         <button onclick="switchServer(${i})"
                             class="server-btn px-3 py-1.5 rounded-lg text-sm transition ${i === 0 ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}"
                             data-server="${s}">
-                            ${s}
+                            ${t('server')} ${i + 1}
                         </button>
                     `).join('')}
                 </div>
@@ -374,7 +386,7 @@ async function showWatch(url, title) {
                         <button onclick="switchStream(${i})"
                             class="stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === 0 ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}"
                             data-index="${i}">
-                            ${s.quality_label || 'Auto'} ${s.server_name ? '(' + s.server_name + ')' : ''}
+                            ${s.quality_label || 'Auto'}
                         </button>
                     `).join('')}
                 </div>
@@ -388,6 +400,7 @@ async function showWatch(url, title) {
             ? window.Installer ? Installer.proxify(bestStream.stream_url, bestStream.referer) : bestStream.stream_url
             : bestStream.stream_url,
             bestStream.stream_type, 'playerContainer');
+        restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(bestStream, url, title);
     } catch (e) {
         app.innerHTML = `<div class="text-center py-20 text-gray-500">Error loading streams</div>`;
@@ -429,6 +442,7 @@ function switchStream(index) {
         ? window.Installer ? Installer.proxify(stream.stream_url, stream.referer) : stream.stream_url
         : stream.stream_url,
         stream.stream_type, 'playerContainer');
+    restoreSubtitles(document.getElementById('videoPlayer'));
     startInstaller(stream, window._watchPageUrl || '', window._watchTitle || '');
     document.querySelectorAll('.stream-btn').forEach((btn, i) => {
         btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;

@@ -32,6 +32,10 @@ const I18N = {
         installer_save: "Save to device",
         installer_unavailable: "Install not available for this server",
         installer_failed: "Install failed",
+        subs_title: "Subtitles",
+        subs_none: "No subtitles in this stream",
+        subs_upload: "Upload subtitle file (.srt / .vtt)",
+        subs_unavailable: "Subtitles not available for this server",
     },
     ar: {
         search_placeholder: "ابحث عن أفلام، مسلسلات، أنمي...",
@@ -66,6 +70,10 @@ const I18N = {
         installer_save: "حفظ للجهاز",
         installer_unavailable: "التثبيت غير متاح لهذا السيرفر",
         installer_failed: "فشل التثبيت",
+        subs_title: "الترجمة",
+        subs_none: "لا توجد ترجمة في هذا المصدر",
+        subs_upload: "رفع ملف ترجمة (.srt / .vtt)",
+        subs_unavailable: "الترجمة غير متاحة لهذا السيرفر",
     }
 };
 
