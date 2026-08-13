@@ -34,13 +34,15 @@ function initPlayer(streamUrl, streamType, containerId) {
 
     if (streamType === 'hls' || streamUrl.includes('.m3u8')) {
         if (Hls.isSupported()) {
-            hlsInstance = new Hls({
+            const hlsConfig = {
                 enableWorker: true,
                 lowLatencyMode: false,
                 maxBufferLength: 30,
                 maxMaxBufferLength: 600,
                 startFragPrefetch: true,
-            });
+            };
+            if (window.Installer) Object.assign(hlsConfig, Installer.hlsConfig());
+            hlsInstance = new Hls(hlsConfig);
             hlsInstance.loadSource(streamUrl);
             hlsInstance.attachMedia(video);
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {

@@ -27,6 +27,11 @@ const I18N = {
         home: "Home",
         settings: "Settings",
         clear_cache: "Clear Cache",
+        installer_status: "Install",
+        installer_done: "Installed",
+        installer_save: "Save to device",
+        installer_unavailable: "Install not available for this server",
+        installer_failed: "Install failed",
     },
     ar: {
         search_placeholder: "ابحث عن أفلام، مسلسلات، أنمي...",
@@ -56,6 +61,11 @@ const I18N = {
         home: "الرئيسية",
         settings: "الإعدادات",
         clear_cache: "مسح الكاش",
+        installer_status: "التثبيت",
+        installer_done: "تم التثبيت",
+        installer_save: "حفظ للجهاز",
+        installer_unavailable: "التثبيت غير متاح لهذا السيرفر",
+        installer_failed: "فشل التثبيت",
     }
 };
 

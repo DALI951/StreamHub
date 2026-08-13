@@ -49,8 +49,18 @@ function handleHash() {
     const slash = hash.indexOf('/');
     if (slash === -1) { showHome(); return; }
 
-    const source = hash.slice(0, slash);
-    const slug = hash.slice(slash + 1);
+    const head = hash.slice(0, slash);
+    const rest = hash.slice(slash + 1);
+
+    if (head === 'watch') {
+        const s2 = rest.indexOf('/');
+        if (s2 === -1) { showHome(); return; }
+        showWatchBySlug(rest.slice(0, s2), rest.slice(s2 + 1));
+        return;
+    }
+
+    const source = head;
+    const slug = rest;
 
     if (source && slug) {
         const isEpisode = /الحلقة|حلقه|s\d+e\d+|episode|\/watch\//i.test(slug);
@@ -68,7 +78,7 @@ function navigateTo(view, param) {
     const source = getSource(param);
     const slug = getSlug(param);
     if (source && slug) {
-        location.hash = source + '/' + slug;
+        location.hash = (view === 'watch' ? 'watch/' : '') + source + '/' + slug;
     } else {
         location.hash = 'search/';
     }
@@ -215,7 +225,7 @@ async function showWatchBySlug(source, slug) {
             hideLoading();
             return;
         }
-        showWatch(data.details.url);
+        showWatch(data.details.url, data.details.title || '');
     } catch (e) {
         document.getElementById('app').innerHTML = `<div class="text-center py-20 text-gray-500">Error</div>`;
         hideLoading();
@@ -321,7 +331,7 @@ function renderDetail(d) {
     }
 }
 
-async function showWatch(url) {
+async function showWatch(url, title) {
     appState.currentView = 'watch';
     const app = document.getElementById('app');
     showLoading();
@@ -346,6 +356,7 @@ async function showWatch(url) {
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     <span>${t('back')}</span>
                 </button>
+                ${title ? `<h1 class="text-2xl font-bold mb-4">${title}</h1>` : ''}
                 <div id="playerContainer" class="player-wrap w-full rounded-xl overflow-hidden bg-black mb-6"></div>
                 <div class="flex flex-wrap gap-2 mb-4">
                     <span class="text-sm text-gray-500">${t('server')}:</span>
@@ -371,17 +382,54 @@ async function showWatch(url) {
         `;
 
         window._streams = streams;
-        initPlayer(bestStream.stream_url, bestStream.stream_type, 'playerContainer');
+        window._watchPageUrl = url;
+        window._watchTitle = title || '';
+        initPlayer(bestStream.stream_type === 'hls' || bestStream.stream_type === 'mp4'
+            ? window.Installer ? Installer.proxify(bestStream.stream_url, bestStream.referer) : bestStream.stream_url
+            : bestStream.stream_url,
+            bestStream.stream_type, 'playerContainer');
+        startInstaller(bestStream, url, title);
     } catch (e) {
         app.innerHTML = `<div class="text-center py-20 text-gray-500">Error loading streams</div>`;
     }
     hideLoading();
 }
 
+function startInstaller(stream, pageUrl, title) {
+    if (!window.Installer) return;
+    const container = document.getElementById('playerContainer');
+    if (stream.stream_type === 'iframe') {
+        Installer.notAvailable(container);
+        return;
+    }
+    if (stream.stream_type === 'hls') {
+        Installer.attachHls(hlsInstance, {
+            originalUrl: stream.stream_url,
+            ref: stream.referer || '',
+            title: title || 'episode',
+            streamType: 'hls',
+            container,
+        });
+    } else if (stream.stream_type === 'mp4') {
+        Installer.attach({
+            originalUrl: stream.stream_url,
+            ref: stream.referer || '',
+            title: title || 'episode',
+            streamType: 'mp4',
+            container,
+        });
+    }
+}
+
 function switchStream(index) {
     const stream = window._streams[index];
     if (!stream) return;
-    initPlayer(stream.stream_url, stream.stream_type, 'playerContainer');
+    if (window.Installer) Installer.stop();
+    initPlayer(stream.stream_type === 'hls' || stream.stream_type === 'mp4'
+        ? window.Installer ? Installer.proxify(stream.stream_url, stream.referer) : stream.stream_url
+        : stream.stream_url,
+        stream.stream_type, 'playerContainer');
+    startInstaller(stream, window._watchPageUrl || '', window._watchTitle || '');
     document.querySelectorAll('.stream-btn').forEach((btn, i) => {
         btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
     });
