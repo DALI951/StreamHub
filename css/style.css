@@ -686,3 +686,113 @@ input:focus-visible {
 .pc-group .sub-btn.sub-btn-disabled:hover {
     background: none;
 }
+
+/* ============ PLAYER BRAND + TOAST + HOME ============ */
+
+.pc-brand {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    background: rgba(3,7,18,0.55);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    z-index: 20;
+}
+
+.pc-brand svg {
+    width: 12px;
+    height: 12px;
+    color: #ef4444;
+    fill: #ef4444;
+}
+
+#toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: rgba(10,10,15,0.95);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e5e7eb;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 70;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.stream-btn {
+    position: relative;
+}
+
+.stream-btn .stream-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6b7280;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.stream-btn[data-direct="1"] .stream-dot {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34,197,94,0.7);
+}
+
+.home-hero {
+    background: #0b0b12;
+}
+
+.home-hero .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.home-row {
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(239,68,68,0.4) transparent;
+}
+
+.home-row::-webkit-scrollbar {
+    height: 6px;
+}
+
+.home-row::-webkit-scrollbar-thumb {
+    background: rgba(239,68,68,0.4);
+    border-radius: 3px;
+}
+
+.home-row::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+[dir="rtl"] .pc-brand {
+    left: auto;
+    right: 14px;
+}
+
+[dir="rtl"] .stream-btn .stream-dot {
+    margin-left: 0;
+    margin-right: 6px;
+}

@@ -1,6 +1,8 @@
 <?php
 error_reporting(E_ERROR | E_PARSE);
 
+$apiBase = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/api'), '/');
+
 $url = trim($_GET['url'] ?? '');
 if (empty($url) || !preg_match('#^https?://#i', $url)) {
     http_response_code(400);
@@ -160,6 +162,7 @@ if (is_string($body)) {
 exit;
 
 function rewritePlaylist(string $body, string $base, bool $dl, string $ref = ''): string {
+    global $apiBase;
     $q = ($dl ? '&dl=1' : '') . ($ref ? '&ref=' . rawurlencode($ref) : '');
     $lines = explode("\n", $body);
     $out = [];
@@ -172,14 +175,15 @@ function rewritePlaylist(string $body, string $base, bool $dl, string $ref = '')
         if ($line[0] === '#') {
             if (preg_match('#^#EXT-X-(MAP|KEY):#i', $line)) {
                 $line = preg_replace_callback('/URI="([^"]+)"/', function ($mm) use ($base, $q) {
-                    return 'URI="' . 'api/proxy.php?url=' . rawurlencode(resolveUrl($base, $mm[1])) . $q . '"';
+                    global $apiBase;
+                    return 'URI="' . $apiBase . '/proxy.php?url=' . rawurlencode(resolveUrl($base, $mm[1])) . $q . '"';
                 }, $line);
             }
             $out[] = $line;
             continue;
         }
         $abs = resolveUrl($base, $line);
-        $out[] = 'api/proxy.php?url=' . rawurlencode($abs) . $q;
+        $out[] = $apiBase . '/proxy.php?url=' . rawurlencode($abs) . $q;
     }
     return implode("\n", $out);
 }

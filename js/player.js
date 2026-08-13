@@ -95,12 +95,17 @@ function buildPlayerChrome(video, container) {
 
     const chrome = document.createElement('div');
     chrome.className = 'pc-chrome';
+    const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
     chrome.innerHTML = `
         <div class="pc-scrim"></div>
-        <div class="pc-bigplay">${ICONS.play}</div>
+        <div class="pc-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span>StreamHub Player</span>
+        </div>
+        <div class="pc-bigplay" title="${tt('player_play', 'Play')}">${ICONS.play}</div>
         <div class="pc-loading">${ICONS.spinner}</div>
         <div class="pc-controls">
-            <button class="pc-btn pc-play">${ICONS.play}</button>
+            <button class="pc-btn pc-play" title="${tt('player_play', 'Play')}">${ICONS.play}</button>
             <div class="pc-seek">
                 <div class="pc-buffer"></div>
                 <div class="pc-progress"></div>
@@ -108,12 +113,12 @@ function buildPlayerChrome(video, container) {
             </div>
             <span class="pc-time">0:00 / 0:00</span>
             <div class="pc-group">
-                <button class="pc-btn pc-mute">${ICONS.vol}</button>
+                <button class="pc-btn pc-mute" title="${tt('player_mute', 'Mute')}">${ICONS.vol}</button>
                 <input type="range" class="pc-vol" min="0" max="100" value="100">
-                <button class="pc-btn pc-speed">1x</button>
-                <button class="pc-btn pc-quality" style="display:none">Auto</button>
-                <button class="pc-btn pc-cc">${ICONS.cc}</button>
-                <button class="pc-btn pc-fs">${ICONS.fs}</button>
+                <button class="pc-btn pc-speed" title="${tt('player_speed', 'Playback speed')}">1x</button>
+                <button class="pc-btn pc-quality" style="display:none" title="${tt('player_quality', 'Quality')}">Auto</button>
+                <button class="pc-btn pc-cc" title="${tt('player_cc', 'Subtitles')}">${ICONS.cc}</button>
+                <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
             </div>
         </div>
     `;

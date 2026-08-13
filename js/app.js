@@ -115,24 +115,106 @@ const imgUrl = (u) => u && !u.startsWith('api/') && !u.startsWith('data:') ? 'ap
 
 function showHome() {
     appState.currentView = 'home';
-    document.getElementById('app').innerHTML = `
-        <div class="hero-gradient min-h-[60vh] flex items-center justify-center text-center px-4">
-            <div>
-                <h1 class="text-5xl md:text-7xl font-bold mb-4">
+    const app = document.getElementById('app');
+    app.innerHTML = `
+        <div class="hero-gradient relative overflow-hidden">
+            <div class="max-w-7xl mx-auto px-4 py-16 md:py-24 text-center">
+                <h1 class="text-5xl md:text-7xl font-bold mb-3">
                     <span class="text-red-500">Stream</span>Hub
                 </h1>
-                <p class="text-gray-400 text-lg mb-8" data-i18n="search_placeholder">${t('search_placeholder')}</p>
+                <p class="text-gray-400 text-lg mb-8">${t('search_placeholder')}</p>
                 <div class="max-w-lg mx-auto">
                     <input id="homeSearch" type="text" placeholder="${t('search_placeholder')}"
-                        class="w-full bg-gray-900 border border-gray-800 rounded-full px-6 py-4 text-lg focus:outline-none focus:border-red-500/50 transition placeholder-gray-500"
-                        onkeydown="if(event.key==='Enter'){navigateTo('search',this.value)}">
+                        class="w-full bg-gray-900/80 border border-gray-800 rounded-full px-6 py-4 text-lg focus:outline-none focus:border-red-500/50 transition placeholder-gray-500"
+                        onkeydown="if(event.key==='Enter'&&this.value.trim()){navigateTo('search',this.value)}">
                 </div>
-                <div class="mt-8 flex flex-wrap gap-3 justify-center">
-                    <span class="text-sm text-gray-500">${t('all_sources')}</span>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 py-8" id="homeRows">
+            <div class="flex items-center justify-center py-16 text-gray-500">
+                <div class="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        </div>
+    `;
+    loadHome();
+}
+
+function cardHTML(r, delay = 0, fixed = false) {
+    const goWatch = r.type === 'episode';
+    return `
+        <div class="card-hover cursor-pointer animate-in ${fixed ? 'shrink-0 w-36 sm:w-40 md:w-44' : ''}"
+             style="animation-delay:${delay * 30}ms"
+             onclick="navigateTo('${goWatch ? 'watch' : 'detail'}', '${r.url.replace(/'/g, "\\'")}')">
+            <div class="relative rounded-lg overflow-hidden bg-gray-900 aspect-[2/3] ${fixed ? '' : 'w-full'}">
+                ${r.poster ? `<img src="${imgUrl(r.poster)}" alt="${r.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">` :
+                    `<div class="w-full h-full flex items-center justify-center"><svg class="w-10 h-10 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
+                <div class="poster-gradient absolute inset-0"></div>
+                <div class="play-overlay">
+                    <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <span class="source-badge absolute top-2 left-2">HD</span>
+                <div class="absolute bottom-0 left-0 right-0 p-3">
+                    <h3 class="font-semibold text-sm line-clamp-2">${r.title}</h3>
                 </div>
             </div>
         </div>
     `;
+}
+
+async function loadHome() {
+    try {
+        const res = await fetch('api/home.php');
+        const data = await res.json();
+        const cats = data.categories || [];
+        if (!cats.length) throw new Error('empty');
+        window._homeCats = cats;
+        buildHome(cats);
+    } catch (e) {
+        const el = document.getElementById('homeRows');
+        if (el) el.innerHTML = `<div class="empty-state"><p>${t('no_results')}</p><p class="text-sm mt-1">${t('try_different')}</p></div>`;
+    }
+}
+
+function catTitle(key) {
+    const m = { fresh: t('fresh'), movies: t('movies'), series: t('series'), anime: t('anime') };
+    return m[key] || key;
+}
+
+function buildHome(cats) {
+    const container = document.getElementById('homeRows');
+    if (!container) return;
+    const featured = (cats.find(c => c.key === 'fresh') || cats[0] || {}).items?.[0];
+    let html = '';
+    if (featured) {
+        const fUrl = imgUrl(featured.poster);
+        const fType = featured.type === 'episode' ? t('episodes') : (featured.type === 'series' ? t('type_series') : t('type_movie'));
+        html += `
+        <div class="home-hero relative rounded-2xl overflow-hidden mb-10">
+            <div class="absolute inset-0 bg-cover bg-center blur-sm scale-110" style="background-image:url('${fUrl}')"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/20"></div>
+            <div class="relative p-8 md:p-12 max-w-2xl">
+                <span class="text-xs px-2 py-1 bg-red-600 rounded-full font-semibold">${fType}</span>
+                <h2 class="text-3xl md:text-5xl font-bold mt-4 mb-6 line-clamp-2">${featured.title}</h2>
+                <button onclick="navigateTo('${featured.type === 'episode' ? 'watch' : 'detail'}', '${featured.url.replace(/'/g, "\\'")}')"
+                    class="px-8 py-3 bg-red-600 hover:bg-red-700 rounded-xl font-semibold transition flex items-center gap-2 w-fit">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    ${t('watch_now')}
+                </button>
+            </div>
+        </div>`;
+    }
+    html += cats.map((cat, ci) => `
+        <section class="mb-10">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span class="w-1 h-6 bg-red-600 rounded-full"></span>${catTitle(cat.key)}
+                </h3>
+            </div>
+            <div class="home-row flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-thin">
+                ${cat.items.map((it, i) => cardHTML(it, ci * 30 + i, true)).join('')}
+            </div>
+        </section>`).join('');
+    container.innerHTML = html;
 }
 
 async function doSearch(query) {
@@ -176,23 +258,20 @@ function renderResults(results) {
         </div>`;
         return;
     }
-    container.innerHTML = results.map((r, i) => `
-        <div class="card-hover cursor-pointer animate-in" style="animation-delay:${i * 30}ms"
-             onclick="navigateTo('detail', '${r.url.replace(/'/g, "\\'")}'  )">
-            <div class="relative rounded-lg overflow-hidden bg-gray-900 aspect-[2/3]">
-                ${r.poster ? `<img src="${imgUrl(r.poster)}" alt="${r.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">` :
-                    `<div class="w-full h-full flex items-center justify-center"><svg class="w-10 h-10 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>`}
-                <div class="poster-gradient absolute inset-0"></div>
-                <div class="play-overlay">
-                    <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-                <span class="source-badge absolute top-2 left-2">HD</span>
-                <div class="absolute bottom-0 left-0 right-0 p-3">
-                    <h3 class="font-semibold text-sm line-clamp-2">${r.title}</h3>
-                </div>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = results.map((r, i) => cardHTML(r, i)).join('');
+}
+
+function showToast(msg) {
+    let el = document.getElementById('toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
 function extractSeasonName(url) {
@@ -385,8 +464,9 @@ async function showWatch(url, title) {
                     ${streams.map((s, i) => `
                         <button onclick="switchStream(${i})"
                             class="stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === 0 ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}"
-                            data-index="${i}">
+                            data-index="${i}" data-direct="0">
                             ${s.quality_label || 'Auto'}
+                            <span class="stream-dot"></span>
                         </button>
                     `).join('')}
                 </div>
@@ -398,13 +478,19 @@ async function showWatch(url, title) {
         window._watchPageUrl = url;
         window._watchTitle = title || '';
 
-        const u = await tryUnwrap(bestStream, 0);
-        const playable = u || bestStream;
+        const unwrapped = await Promise.all(streams.map((s, i) => tryUnwrap(s, i)));
+        const firstOk = unwrapped.findIndex(Boolean);
+        const pick = firstOk >= 0 ? firstOk : 0;
+        updateStreamBadges();
+        const playable = unwrapped[pick] || streams[pick];
         const playerUrl = playable.isUnwrapped
             ? playable.stream_url
             : (playable.stream_type === 'hls' || playable.stream_type === 'mp4')
                 ? (window.Installer ? Installer.proxify(playable.stream_url, playable.referer) : playable.stream_url)
                 : playable.stream_url;
+        if (pick !== 0) {
+            showToast(`${t('now_playing')}: ${t('server')} ${pick + 1} · ${unwrapped[pick] ? t('direct') : t('external')}`);
+        }
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(playable, url, title);
@@ -412,6 +498,14 @@ async function showWatch(url, title) {
         app.innerHTML = `<div class="text-center py-20 text-gray-500">Error loading streams</div>`;
     }
     hideLoading();
+}
+
+function updateStreamBadges() {
+    document.querySelectorAll('.stream-btn').forEach((btn, i) => {
+        const direct = !!(window._unwrapped && window._unwrapped[i]);
+        btn.setAttribute('data-direct', direct ? '1' : '0');
+        btn.title = direct ? t('direct') : t('external');
+    });
 }
 
 async function tryUnwrap(stream, index) {
@@ -480,10 +574,12 @@ function switchStream(index) {
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(playable, window._watchPageUrl || '', window._watchTitle || '');
+        showToast(`${t('now_playing')}: ${t('server')} ${index + 1} · ${u ? t('direct') : t('external')}`);
     });
     document.querySelectorAll('.stream-btn').forEach((btn, i) => {
         btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
     });
+    updateStreamBadges();
 }
 
 function switchServer(index) {
