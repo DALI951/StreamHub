@@ -565,7 +565,7 @@ function openSubtitlePanel(video, container, btn) {
     }
     if (!tracks) tracks = '<div class="sub-none">' + t('subs_none') + '</div>';
     const offCls = activeIdx === -1 ? 'pc-on' : '';
-    const saved = subOffsetValue();
+    const saved = subState();
     panel.innerHTML = `
         <div class="sub-panel-title">${t('subs_title')}</div>
         <div class="sub-tracks">
@@ -577,10 +577,11 @@ function openSubtitlePanel(video, container, btn) {
             <span class="sub-sync-label">${t('subs_sync')}</span>
             <button class="sub-sync-btn" data-sync="-5">−5</button>
             <button class="sub-sync-btn" data-sync="-0.5">−0.5</button>
-            <span class="sub-sync-val" data-sync-val>${saved ? (saved > 0 ? '+' : '') + saved.toFixed(1) + 's' : '0.0s'}</span>
+            <span class="sub-sync-val" data-sync-val>${fmtSubState(saved.s, saved.o)}</span>
             <button class="sub-sync-btn" data-sync="0.5">+0.5</button>
             <button class="sub-sync-btn" data-sync="5">+5</button>
             <button class="sub-sync-btn" data-sync="auto">${t('subs_auto')}</button>
+            <button class="sub-sync-btn" data-sync="cal" title="${t('subs_cal')}">${t('subs_cal')}</button>
             <button class="sub-sync-btn" data-sync="0" title="${t('subs_reset')}">0</button>
         </div>
         <label class="sub-upload">
@@ -621,27 +622,31 @@ function openSubtitlePanel(video, container, btn) {
                 if (typeof showToast === 'function') showToast(t('subs_sync_none') || 'Select a subtitle first');
                 return;
             }
-            let rel;
+            let ok = false;
+            let s = 1, o = 0;
+            if (action === 'cal') {
+                await calibrateNow(video);
+                return;
+            }
+            const cur = subState();
+            s = cur.s;
             if (action === 'auto') {
-                const track = trackEl.track;
-                const need = autoFitOffset(video, track);
+                const need = autoFitOffset(video, trackEl.track);
                 if (!need) {
                     if (typeof showToast === 'function') showToast(t('subs_auto_none') || 'No auto-sync needed');
                     return;
                 }
-                rel = need - subOffsetValue();
+                o = need;
             } else if (action === '0') {
-                rel = -subOffsetValue();
+                s = 1;
+                o = 0;
             } else {
-                rel = parseFloat(action);
+                o = cur.o + parseFloat(action);
             }
-            if (!rel) return;
-            const ok = await applyTrackOffset(video, trackEl, Math.round(rel * 1000));
+            ok = await applySubTransform(video, trackEl, s, Math.round(o * 1000));
             if (!ok) return;
-            const val = Math.round((subOffsetValue() + rel) * 10) / 10;
-            saveSubOffset(val);
-            if (valSpan) valSpan.textContent = (val > 0 ? '+' : '') + val.toFixed(1) + 's';
-            if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + (val > 0 ? '+' : '') + val.toFixed(1) + 's');
+            if (valSpan) valSpan.textContent = fmtSubState(s, o);
+            if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + fmtSubState(s, o));
         };
     });
 
@@ -657,8 +662,13 @@ function openSubtitlePanel(video, container, btn) {
             const blob = new Blob([vtt], { type: 'text/vtt' });
             const url = URL.createObjectURL(blob);
             const el = injectSubtitleTrack(video, url, file.name.replace(/\.(srt|vtt)$/i, ''));
-            window._pcSubVttText = vtt;
-            window._pcSubVttTrack = el;
+            window._pcSubPristine = vtt;
+            window._pcSubTrack = el;
+            window._pcSubPristineCues = parseCuesFromVtt(vtt);
+            window._pcSubScale = 1;
+            window._pcSubOffsetMs = 0;
+            window._pcCalPoints = [];
+            saveSubState(1, 0);
             persistCustomSubtitle(vtt);
             panel.remove();
         };
@@ -672,44 +682,80 @@ function subOffsetKey() {
     return 'pc_sub_off_' + (q.q + '|' + q.type).toLowerCase().replace(/[^a-z0-9|]/g, '');
 }
 
-function subOffsetValue() {
+function subState() {
     try {
         const k = subOffsetKey();
-        if (!k) return 0;
-        const v = parseFloat(localStorage.getItem(k) || '');
-        return Number.isFinite(v) ? v : 0;
-    } catch (e) { return 0; }
+        if (!k) return { o: 0, s: 1 };
+        const raw = localStorage.getItem(k) || '';
+        if (raw.startsWith('{')) {
+            const j = JSON.parse(raw);
+            return { o: Number.isFinite(j.o) ? j.o : 0, s: Number.isFinite(j.s) && j.s > 0 ? j.s : 1 };
+        }
+        const v = parseFloat(raw);
+        return Number.isFinite(v) ? { o: v, s: 1 } : { o: 0, s: 1 };
+    } catch (e) { return { o: 0, s: 1 }; }
 }
 
-function saveSubOffset(v) {
+function saveSubState(s, offsetMs) {
     try {
         const k = subOffsetKey();
         if (!k) return;
-        if (v) localStorage.setItem(k, String(Math.round(v * 10) / 10));
+        const o = Math.round((offsetMs / 1000) * 10) / 10;
+        if (s !== 1 || o !== 0) localStorage.setItem(k, JSON.stringify({ o, s: Math.round(s * 10000) / 10000 }));
         else localStorage.removeItem(k);
     } catch (e) { /* storage unavailable */ }
 }
 
-function shiftVttTimings(vtt, ms) {
+function fmtSubState(s, o) {
+    return (s !== 1 ? 'x' + (+s).toFixed(3) + ' ' : '') + (o ? (o > 0 ? '+' : '') + (+o).toFixed(1) + 's' : '0.0s');
+}
+
+function transformVtt(vtt, scale, offsetMs) {
+    const fmt = (t) => {
+        t = Math.max(0, Math.round(t));
+        return `${String(Math.floor(t / 3600000)).padStart(2, '0')}:${String(Math.floor(t % 3600000 / 60000)).padStart(2, '0')}:${String(Math.floor(t % 60000 / 1000)).padStart(2, '0')}.${String(t % 1000).padStart(3, '0')}`;
+    };
     return vtt.replace(/(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})([^\n]*)/g,
         (m, h1, m1, s1, x1, h2, m2, s2, x2, tail) => {
-            const fmt = (t) => {
-                t = Math.max(0, Math.round(t));
-                return `${String(Math.floor(t / 3600000)).padStart(2, '0')}:${String(Math.floor(t % 3600000 / 60000)).padStart(2, '0')}:${String(Math.floor(t % 60000 / 1000)).padStart(2, '0')}.${String(t % 1000).padStart(3, '0')}`;
-            };
-            return `${fmt(+h1 * 3600000 + +m1 * 60000 + +s1 * 1000 + +x1 + ms)} --> ${fmt(+h2 * 3600000 + +m2 * 60000 + +s2 * 1000 + +x2 + ms)}${tail}`;
+            const a = (+h1 * 3600000 + +m1 * 60000 + +s1 * 1000 + +x1) * scale + offsetMs;
+            const b = (+h2 * 3600000 + +m2 * 60000 + +s2 * 1000 + +x2) * scale + offsetMs;
+            return `${fmt(a)} --> ${fmt(b)}${tail}`;
         });
 }
 
-async function applyTrackOffset(video, trackEl, offsetMs) {
+function parseCuesFromVtt(vtt) {
+    const out = [];
+    const blocks = vtt.replace(/\r/g, '').split(/\n{2,}/);
+    for (const b of blocks) {
+        const m = b.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+        if (!m) continue;
+        const lines = b.split('\n');
+        const txt = lines.slice(1).join(' ').trim();
+        if (!txt) continue;
+        out.push({
+            s: (+m[1] * 3600 + +m[2] * 60 + +m[3]) + +m[4] / 1000,
+            e: (+m[5] * 3600 + +m[6] * 60 + +m[7]) + +m[8] / 1000,
+            txt
+        });
+    }
+    return out;
+}
+
+async function applySubTransform(video, trackEl, scale, offsetMs) {
     if (!trackEl || !trackEl.src) return false;
     try {
-        let text = window._pcSubVttTrack === trackEl ? window._pcSubVttText : null;
-        if (text == null) text = await (await fetch(trackEl.src)).text();
-        const shifted = shiftVttTimings(text, offsetMs);
-        window._pcSubVttText = shifted;
-        window._pcSubVttTrack = trackEl;
-        const url = URL.createObjectURL(new Blob([shifted], { type: 'text/vtt' }));
+        let pristine = window._pcSubPristine;
+        if (!pristine || window._pcSubTrack !== trackEl) {
+            pristine = await (await fetch(trackEl.src)).text();
+            window._pcSubPristine = pristine;
+            window._pcSubTrack = trackEl;
+            window._pcSubPristineCues = parseCuesFromVtt(pristine);
+            window._pcCalPoints = [];
+        }
+        const out = transformVtt(pristine, scale, offsetMs);
+        window._pcSubScale = scale;
+        window._pcSubOffsetMs = offsetMs;
+        const url = URL.createObjectURL(new Blob([out], { type: 'text/vtt' }));
         const nt = document.createElement('track');
         nt.kind = 'subtitles';
         nt.label = trackEl.label || 'العربية';
@@ -720,6 +766,8 @@ async function applyTrackOffset(video, trackEl, offsetMs) {
         nt.addEventListener('load', () => {
             for (const tr of video.textTracks) tr.mode = tr === nt.track ? 'showing' : 'disabled';
         });
+        window._pcSubTrack = nt;
+        saveSubState(scale, offsetMs);
         return true;
     } catch (e) {
         return false;
@@ -741,9 +789,58 @@ function autoFitOffset(video, textTrack) {
     if (!video || !video.duration || !textTrack || !textTrack.cues || !textTrack.cues.length) return 0;
     const cues = Array.from(textTrack.cues);
     const first = cues[0].startTime;
-    const delta = video.duration - cues[cues.length - 1].endTime;
+    const last = cues[cues.length - 1].endTime;
+    const delta = video.duration - last;
     if (first < 15 && delta > 20 && delta < 300) return Math.round(delta);
+    if (first >= 15 && first < 90) return -Math.round(first);
     return 0;
+}
+
+function calibrateNow(video) {
+    const trackEl = showingTrackEl(video);
+    if (!trackEl || !trackEl.track || !trackEl.track.cues) {
+        if (typeof showToast === 'function') showToast(t('subs_cal_none') || 'No subtitle at the current time');
+        return;
+    }
+    const vt = video.currentTime;
+    let cur = null;
+    for (const c of trackEl.track.cues) {
+        if (vt >= c.startTime && vt <= c.endTime) { cur = c; break; }
+    }
+    if (!cur) {
+        if (typeof showToast === 'function') showToast(t('subs_cal_none') || 'No subtitle at the current time');
+        return;
+    }
+    let pt = cur.startTime;
+    if (window._pcSubPristineCues) {
+        const hit = window._pcSubPristineCues.find(c => c.txt === (cur.text || '').trim());
+        if (hit) pt = hit.s;
+    }
+    window._pcCalPoints = window._pcCalPoints || [];
+    window._pcCalPoints.push({ t: pt, v: vt });
+    if (window._pcCalPoints.length === 1) {
+        const off = vt - pt;
+        if (Math.abs(off) > 30) {
+            window._pcCalPoints = [];
+            if (typeof showToast === 'function') showToast(t('subs_cal_close') || 'Points too far apart - try again');
+            return;
+        }
+        applySubTransform(video, trackEl, window._pcSubScale || 1, Math.round(off * 1000));
+        if (typeof showToast === 'function') showToast(t('subs_cal_p1') || 'Point 1 set - press again at a later scene');
+    } else {
+        const [p1, p2] = window._pcCalPoints;
+        window._pcCalPoints = [];
+        if (Math.abs(p2.t - p1.t) < 10) {
+            if (typeof showToast === 'function') showToast(t('subs_cal_close') || 'Points too close - try again');
+            return;
+        }
+        let s = (p2.v - p1.v) / (p2.t - p1.t);
+        s = Math.min(1.15, Math.max(0.85, s));
+        let o = p1.v - s * p1.t;
+        o = Math.min(30, Math.max(-30, o));
+        applySubTransform(video, trackEl, s, Math.round(o * 1000));
+        if (typeof showToast === 'function') showToast((t('subs_cal_p2') || 'Calibrated') + ' ' + fmtSubState(s, o));
+    }
 }
 
 function autoEnableArabic(video) {
@@ -800,15 +897,15 @@ async function loadArabicSubs(video, force) {
         track.addEventListener('load', () => {
             if (window._pcSubsPicked) return;
             for (const t of video.textTracks) t.mode = t === track.track ? 'showing' : 'disabled';
-            const hadSaved = subOffsetValue() !== 0;
+            const hadSaved = (() => { const st = subState(); return st.o !== 0 || st.s !== 1; })();
             setTimeout(async () => {
                 if (!video.isConnected) return;
-                const off = hadSaved ? subOffsetValue() : autoFitOffset(video, track.track);
-                if (!off) return;
-                const applied = await applyTrackOffset(video, track, Math.round(off * 1000));
+                const st = subState();
+                const off = hadSaved ? st.o : autoFitOffset(video, track.track);
+                if (!hadSaved && !off) return;
+                const applied = await applySubTransform(video, track, st.s, Math.round(off * 1000));
                 if (applied) {
-                    saveSubOffset(off);
-                    toast(t('subs_synced') + ' ' + (off > 0 ? '+' : '') + off.toFixed(1) + 's');
+                    if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + fmtSubState(st.s, off));
                 }
             }, 400);
         });

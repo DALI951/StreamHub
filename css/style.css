@@ -390,6 +390,16 @@ video::cue {
     color: #fff;
 }
 
+.sub-sync-btn[data-sync="cal"] {
+    background: rgba(255, 180, 0, 0.12);
+    border-color: rgba(255, 180, 0, 0.4);
+    color: #ffd166;
+}
+
+.sub-sync-btn[data-sync="cal"]:hover {
+    border-color: #ffd166;
+}
+
 /* ============ WATCH PAGE NAV (prev/next) ============ */
 
 .watch-nav {
