@@ -164,6 +164,13 @@ exit;
 function rewritePlaylist(string $body, string $base, bool $dl, string $ref = ''): string {
     global $apiBase;
     $q = ($dl ? '&dl=1' : '') . ($ref ? '&ref=' . rawurlencode($ref) : '');
+    // propagate the token param from the master URL to every rewritten child
+    $baseQuery = parse_url($base, PHP_URL_QUERY) ?? '';
+    $tok = '';
+    if (preg_match('/(?:^|&)token=([^&]+)/', $baseQuery, $tm)) {
+        $tok = (strpos($q, '?') !== false ? '&' : '') . 'token=' . $tm[1];
+        $tok = '&token=' . $tm[1];
+    }
     $lines = explode("\n", $body);
     $out = [];
     foreach ($lines as $line) {
@@ -174,16 +181,17 @@ function rewritePlaylist(string $body, string $base, bool $dl, string $ref = '')
         }
         if ($line[0] === '#') {
             if (preg_match('#^#EXT-X-(MAP|KEY):#i', $line)) {
-                $line = preg_replace_callback('/URI="([^"]+)"/', function ($mm) use ($base, $q) {
+                $line = preg_replace_callback('/URI="([^"]+)"/', function ($mm) use ($base, $q, $tok) {
                     global $apiBase;
-                    return 'URI="' . $apiBase . '/proxy.php?url=' . rawurlencode(resolveUrl($base, $mm[1])) . $q . '"';
+                    return 'URI="' . $apiBase . '/proxy.php?url=' . rawurlencode(resolveUrl($base, $mm[1])) . $q . $tok . '"';
                 }, $line);
             }
             $out[] = $line;
             continue;
         }
         $abs = resolveUrl($base, $line);
-        $out[] = $apiBase . '/proxy.php?url=' . rawurlencode($abs) . $q;
+        $lineTok = (strpos($abs, 'token=') !== false) ? '' : $tok;
+        $out[] = $apiBase . '/proxy.php?url=' . rawurlencode($abs) . $q . $lineTok;
     }
     return implode("\n", $out);
 }

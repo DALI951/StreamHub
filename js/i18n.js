@@ -53,6 +53,9 @@ const I18N = {
         player_fullscreen: "Fullscreen",
         player_crop: "Remove watermark (crop)",
         player_settings: "Settings",
+        streams_unavailable: "unavailable stream(s) removed",
+        missing_info: "missing info",
+        player_error: "error",
     },
     ar: {
         search_placeholder: "ابحث عن أفلام، مسلسلات، أنمي...",
@@ -108,6 +111,9 @@ const I18N = {
         player_fullscreen: "ملء الشاشة",
         player_crop: "إزالة العلامة المائية (قص)",
         player_settings: "الإعدادات",
+        streams_unavailable: "رابط/روابط غير متوفرة تمت إزالتها",
+        missing_info: "معلومات ناقصة",
+        player_error: "خطأ",
     }
 };
 

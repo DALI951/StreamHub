@@ -985,16 +985,28 @@ input:focus-visible {
     white-space: nowrap;
 }
 
-/* iframe mode: scrim + controls bar must NOT block the embed's own player */
+/* iframe mode: our bottom bar stays visible and COVERS the embed's own
+   controls (cross-origin, can't touch their DOM) — solid bg + click shield */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
 }
 
-.pc-controls-iframe {
+.pc-iframe-chrome .pc-controls {
     pointer-events: none;
 }
 
-.pc-controls-iframe .pc-buttons {
+.pc-iframe-chrome.pc-visible .pc-controls {
+    pointer-events: auto;
+    background: linear-gradient(0deg, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 45%, rgba(0,0,0,0.35) 100%);
+    padding-top: 34px;
+}
+
+.pc-iframe-chrome .pc-controls .pc-buttons {
+    pointer-events: auto;
+}
+
+.pc-iframe-chrome .pc-controls .pc-buttons .pc-btn,
+.pc-iframe-chrome .pc-controls .pc-buttons .pc-time {
     pointer-events: auto;
 }
 

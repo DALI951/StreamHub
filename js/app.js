@@ -430,8 +430,21 @@ async function showWatch(url, title) {
     try {
         const res = await fetch(`${API_BASE}/streams.php?url=${encodeURIComponent(url)}`);
         const data = await res.json();
-        const streams = (data.streams || []).filter(s => !/morencius|earnvids/i.test(s.stream_url || ''));
+        let streams = (data.streams || []).filter(s => !/morencius|earnvids/i.test(s.stream_url || ''));
 
+        if (!streams.length) {
+            app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
+            hideLoading();
+            return;
+        }
+
+        const probes = await Promise.all(streams.map((s) => probeStream(s)));
+        const alive = streams.filter((_, i) => probes[i]);
+        const dropped = streams.length - alive.length;
+        if (dropped > 0) {
+            showToast(dropped + ' ' + (t('streams_unavailable') || 'unavailable stream(s) removed'));
+        }
+        streams = alive;
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
             hideLoading();
@@ -457,6 +470,11 @@ async function showWatch(url, title) {
                             <span class="stream-dot"></span>
                         </button>
                     `).join('')}
+                    <button onclick="switchVidsrc()" data-vidsrc="1"
+                        class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-gray-800 text-gray-400 hover:text-white"
+                        title="VidSrc (English)">
+                        VidSrc <span class="stream-dot"></span>
+                    </button>
                 </div>
             </div>
         `;
@@ -503,6 +521,41 @@ function updateStreamBadges() {
         btn.setAttribute('data-direct', direct ? '1' : '0');
         btn.title = direct ? t('direct') : t('external');
     });
+}
+
+async function switchVidsrc() {
+    const url = window._watchPageUrl || '';
+    const title = window._watchTitle || '';
+    if (!url || !title) { showToast('VidSrc: ' + (t('missing_info') || 'missing info')); return; }
+    const m = url.match(/-s(\d+)e(\d+)/i);
+    let qs = 'q=' + encodeURIComponent(title);
+    if (m) qs += '&type=tv&season=' + m[1] + '&episode=' + m[2];
+    const btn = document.querySelector('.stream-btn[data-vidsrc]');
+    if (btn) { btn.classList.add('opacity-50'); btn.disabled = true; }
+    try {
+        const res = await fetch(`api/vidsrc.php?${qs}`);
+        const data = await res.json();
+        if (!data.ok) { showToast('VidSrc: ' + (data.error || 'unavailable')); return; }
+        initPlayer(data.url, data.type || 'hls', 'playerContainer');
+        showToast(`Now playing: ${data.quality_label || 'VidSrc'}`);
+        restoreSubtitles(document.getElementById('videoPlayer'));
+    } catch (e) {
+        showToast('VidSrc: ' + (t('player_error') || 'error'));
+    } finally {
+        if (btn) { btn.classList.remove('opacity-50'); btn.disabled = false; }
+    }
+}
+
+async function probeStream(stream) {    try {
+        const ctl = new AbortController();
+        const to = setTimeout(() => ctl.abort(), 9000);
+        const res = await fetch(`api/probe.php?url=${encodeURIComponent(stream.stream_url)}&type=${encodeURIComponent(stream.stream_type || 'iframe')}${stream.referer ? '&referer=' + encodeURIComponent(stream.referer) : ''}`, { signal: ctl.signal });
+        clearTimeout(to);
+        const data = await res.json();
+        return data.ok !== false;
+    } catch (e) {
+        return true;
+    }
 }
 
 async function tryUnwrap(stream, index) {

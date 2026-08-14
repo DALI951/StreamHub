@@ -96,14 +96,12 @@ function buildIframeChrome(container) {
     `;
     container.appendChild(chrome);
 
-    const showChrome = () => {
+    // iframe embeds keep their own video; our bottom bar stays VISIBLE and
+    // covers the embed's controls so only our chrome is shown.
+    const keepChrome = () => {
         chrome.classList.add('pc-visible');
         container.classList.remove('pc-idle');
         clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-            chrome.classList.remove('pc-visible');
-            container.classList.add('pc-idle');
-        }, 3000);
     };
 
     chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
@@ -114,13 +112,13 @@ function buildIframeChrome(container) {
         e.stopPropagation();
     });
 
-    container.addEventListener('mousemove', showChrome);
-    container.addEventListener('touchstart', showChrome, { passive: true });
+    container.addEventListener('mousemove', keepChrome);
+    container.addEventListener('touchstart', keepChrome, { passive: true });
     container.addEventListener('dblclick', (e) => {
         e.preventDefault();
         toggleFullscreen(container);
     });
-    showChrome();
+    keepChrome();
 }
 
 const ICONS = {
@@ -414,6 +412,9 @@ function getSettingsMenu() {
     speeds.forEach((s) => {
         html += `<button class="pc-menu-item ${Math.abs((video ? video.playbackRate : 1) - s) < 0.01 ? 'pc-on' : ''}" data-s="${s}"><span>${s}x</span><i>${ICONS.check}</i></button>`;
     });
+    html += `</div><div class="pc-menu-sec">${tt('seek', 'Seek')}</div><div class="pc-menu-list">`;
+    html += `<button class="pc-menu-item" data-seek="-10"><span>−10s</span><i>${ICONS.check}</i></button>`;
+    html += `<button class="pc-menu-item" data-seek="10"><span>+10s</span><i>${ICONS.check}</i></button>`;
     html += `</div>`;
     menu.innerHTML = html;
     menu.querySelectorAll('[data-q]').forEach((b) => {
@@ -427,6 +428,13 @@ function getSettingsMenu() {
         b.onclick = () => {
             const v = document.getElementById('videoPlayer');
             if (v) v.playbackRate = parseFloat(b.dataset.s);
+            getSettingsMenu();
+        };
+    });
+    menu.querySelectorAll('[data-seek]').forEach((b) => {
+        b.onclick = () => {
+            const v = document.getElementById('videoPlayer');
+            if (v && v.duration) v.currentTime = Math.min(Math.max(v.currentTime + parseInt(b.dataset.seek, 10), 0), v.duration);
             getSettingsMenu();
         };
     });

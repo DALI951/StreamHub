@@ -318,6 +318,121 @@ if (strpos($host, 'morencius.com') !== false || strpos($host, 'earnvids.com') !=
         }
     }
     $result = ['ok' => true, 'type' => 'hls', 'url' => proxyUrl($file), 'subs' => $subs];
+} elseif (strpos($host, 'dood') !== false || strpos($host, 'vidmoly') !== false || strpos($host, 'doodstream') !== false) {
+    // ---- DoodStream family (dood.to/dood.re/vidmoly.to) ----
+    if (!preg_match('#/e/([A-Za-z0-9]+)#', $embed, $m)) {
+        echo json_encode(['ok' => false, 'error' => 'bad dood url']);
+        exit;
+    }
+    $id = $m[1];
+    $scheme = parse_url($embed, PHP_URL_SCHEME) ?: 'https';
+    $page = fetchUrl($embed, $embed);
+    if ($page === null) {
+        echo json_encode(['ok' => false, 'error' => 'dood unreachable']);
+        exit;
+    }
+    $token = null;
+    if (preg_match('#token=([a-f0-9]+)#', $page, $tm)) $token = $tm[1];
+    $api = fetchUrl("$scheme://$host/pass_md5/$id" . ($token ? "?token=$token" : ''), $embed);
+    if ($api === null) {
+        echo json_encode(['ok' => false, 'error' => 'dood pass_md5 failed']);
+        exit;
+    }
+    $path = trim(strip_tags($api));
+    if (!preg_match('#^/#', $path) && strpos($path, '://') === false) {
+        $path = '/' . ltrim($path, '/');
+    }
+    if (strpos($path, '://') === false) $path = "$scheme://$host$path";
+    $play = fetchUrl($path, $embed);
+    if ($play === null) {
+        echo json_encode(['ok' => false, 'error' => 'dood play page failed']);
+        exit;
+    }
+    if (isset($_GET['debug'])) {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'TOKEN: ' . ($token ?: 'none') . "\nPATH: $path\nLEN: " . strlen($play) . "\n";
+        echo substr($play, 0, 1500);
+        exit;
+    }
+    $file = null;
+    if (preg_match('#<video[^>]+src="([^"]+)"#i', $play, $vm)) {
+        $file = $vm[1];
+    } elseif (preg_match('#https?://[^"\']+\.(?:mp4|m3u8)(?:\?[^"\']*)?#i', $play, $um)) {
+        $file = $um[0];
+    }
+    if (!$file) {
+        echo json_encode(['ok' => false, 'error' => 'no file on dood play page']);
+        exit;
+    }
+    $result = ['ok' => true, 'type' => strpos($file, '.m3u8') !== false ? 'hls' : 'mp4', 'url' => $file, 'subs' => []];
+} elseif (strpos($host, 'streamtape') !== false) {
+    // ---- StreamTape ----
+    if (!preg_match('#/e/([A-Za-z0-9]+)#', $embed, $m)) {
+        echo json_encode(['ok' => false, 'error' => 'bad streamtape url']);
+        exit;
+    }
+    $scheme = parse_url($embed, PHP_URL_SCHEME) ?: 'https';
+    $page = fetchUrl($embed, $embed);
+    if ($page === null) {
+        echo json_encode(['ok' => false, 'error' => 'streamtape unreachable']);
+        exit;
+    }
+    if (isset($_GET['debug'])) {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'LEN: ' . strlen($page) . "\n";
+        echo substr($page, 0, 2000);
+        exit;
+    }
+    $file = null;
+    if (preg_match('#innerHTML\s*=\s*unescape\(\'([^\']+)\'\)#i', $page, $im) ||
+        preg_match('#innerHTML\s*=\s*\'([^\']+)\'#i', $page, $im)) {
+        $dec = html_entity_decode(stripcslashes($im[1]), ENT_QUOTES);
+        if (preg_match('#https?://[^"\']+\.(?:mp4|m3u8)(?:\?[^"\']*)?#i', $dec, $um)) {
+            $file = $um[0];
+        }
+    }
+    if (!$file && preg_match('#https?://[^"\']+\.(?:mp4|m3u8)(?:\?[^"\']*)?#i', $page, $um)) {
+        $file = $um[0];
+    }
+    if (!$file) {
+        echo json_encode(['ok' => false, 'error' => 'no file on streamtape']);
+        exit;
+    }
+    $result = ['ok' => true, 'type' => strpos($file, '.m3u8') !== false ? 'hls' : 'mp4', 'url' => $file, 'subs' => []];
+} elseif (strpos($host, 'voe') !== false) {
+    // ---- Voe.sx ----
+    if (!preg_match('#/e/([A-Za-z0-9]+)#', $embed, $m)) {
+        echo json_encode(['ok' => false, 'error' => 'bad voe url']);
+        exit;
+    }
+    $id = $m[1];
+    $scheme = parse_url($embed, PHP_URL_SCHEME) ?: 'https';
+    $page = fetchUrl($embed, $embed);
+    if ($page === null) {
+        echo json_encode(['ok' => false, 'error' => 'voe unreachable']);
+        exit;
+    }
+    $file = null;
+    $hash = null;
+    if (preg_match('#\?hash=([a-zA-Z0-9]+)#', $page, $hm)) $hash = $hm[1];
+    if ($hash) {
+        foreach (["$scheme://$host/api/make/$id?hash=$hash", "$scheme://$host/api/player/$id?hash=$hash"] as $apiUrl) {
+            $api = fetchUrl($apiUrl, $embed);
+            if ($api === null) continue;
+            $j = json_decode($api, true);
+            $cand = $j['data']['file'] ?? $j['data']['url'] ?? $j['file'] ?? $j['url'] ?? null;
+            if ($cand && preg_match('#^https?://#i', $cand)) { $file = $cand; break; }
+            if (preg_match('#https?://[^"\'\\\]+\\.(?:mp4|m3u8)[^"\'\\\]*#i', $api, $um)) { $file = $um[0]; break; }
+        }
+    }
+    if (!$file && preg_match('#https?://[^"\']+\.(?:mp4|m3u8)(?:\?[^"\']*)?#i', $page, $um)) {
+        $file = $um[0];
+    }
+    if (!$file) {
+        echo json_encode(['ok' => false, 'error' => 'no file on voe']);
+        exit;
+    }
+    $result = ['ok' => true, 'type' => strpos($file, '.m3u8') !== false ? 'hls' : 'mp4', 'url' => $file, 'subs' => []];
 } else {
     echo json_encode(['ok' => false, 'error' => 'unsupported host']);
     exit;
