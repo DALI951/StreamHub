@@ -194,6 +194,20 @@ function srtToVtt($srt) {
     return implode("\n", $out);
 }
 
+// OSN/MENA satellite masters run at 25fps (PAL); WEB-DL files (AMZN etc.) are 23.976.
+// The same episode therefore has different timestamps - a pure speed difference that
+// grows to minutes by the end. Rescale OSN-sourced srt timings to 23.976 time.
+function fpsFixSrt($srt, $ratio) {
+    return preg_replace_callback('/(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})/',
+        function ($m) use ($ratio) {
+            $f = function ($h, $mi, $s, $x) use ($ratio) {
+                $t = max(0, round((($h * 60 + $mi) * 60 + $s) * 1000 + $x) * $ratio);
+                return sprintf('%02d:%02d:%02d,%03d', intdiv($t, 3600000), intdiv($t % 3600000, 60000), intdiv($t % 60000, 1000), $t % 1000);
+            };
+            return $f($m[1], $m[2], $m[3], $m[4]) . ' --> ' . $f($m[5], $m[6], $m[7], $m[8]);
+        }, $srt);
+}
+
 // ---------- serve cached vtt ----------
 if (isset($_GET['id'])) {
     $id = preg_replace('/[^a-f0-9]/', '', $_GET['id']);
@@ -214,7 +228,7 @@ $isTv = ($_GET['type'] ?? '') === 'tv';
 $season = (int)($_GET['season'] ?? 0);
 $episode = (int)($_GET['episode'] ?? 0);
 
-$id = md5(strtolower(trim($q)) . '|' . ($isTv ? "tv:$season:$episode" : 'movie'));
+$id = md5(strtolower(trim($q)) . '|v2|' . ($isTv ? "tv:$season:$episode" : 'movie'));
 $row = vttFromCache($id);
 if ($row !== null) {
     echo json_encode(['ok' => true, 'lang' => 'ar', 'url' => 'api/subs.php?id=' . $id . '&v=' . $row['created_at']]);
@@ -240,6 +254,12 @@ if (!$pick) { echo json_encode(['ok' => false, 'error' => 'no arabic subs']); ex
 
 $srt = srtFromZip($pick['zip']);
 if ($srt === null) { echo json_encode(['ok' => false, 'error' => 'download failed']); exit; }
+
+// OSN (MENA satellite) masters are 25fps PAL; our streams are 23.976 WEB-DL.
+// Rescale OSN-sourced timings so the whole episode stays in sync (no drift).
+if (preg_match('/OSN/i', $pick['name'])) {
+    $srt = fpsFixSrt($srt, 25 / 23.976);
+}
 
 $vtt = srtToVtt($srt);
 if (trim($vtt) === 'WEBVTT') { echo json_encode(['ok' => false, 'error' => 'empty subtitles']); exit; }

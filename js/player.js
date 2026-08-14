@@ -636,7 +636,8 @@ function openSubtitlePanel(video, container, btn) {
                     if (typeof showToast === 'function') showToast(t('subs_auto_none') || 'No auto-sync needed');
                     return;
                 }
-                o = need;
+                s = need.s;
+                o = need.o;
             } else if (action === '0') {
                 s = 1;
                 o = 0;
@@ -679,7 +680,7 @@ function openSubtitlePanel(video, container, btn) {
 function subOffsetKey() {
     const q = typeof vidsrcQueryFromWatch === 'function' ? vidsrcQueryFromWatch() : null;
     if (!q || !q.q) return null;
-    return 'pc_sub_off_' + (q.q + '|' + q.type).toLowerCase().replace(/[^a-z0-9|]/g, '');
+    return 'pc_sub_cal_' + (q.q + '|' + q.type).toLowerCase().replace(/[^a-z0-9|]/g, '');
 }
 
 function subState() {
@@ -786,14 +787,18 @@ function showingTrackEl(video) {
 }
 
 function autoFitOffset(video, textTrack) {
-    if (!video || !video.duration || !textTrack || !textTrack.cues || !textTrack.cues.length) return 0;
+    if (!video || !video.duration || !textTrack || !textTrack.cues || !textTrack.cues.length) return null;
     const cues = Array.from(textTrack.cues);
     const first = cues[0].startTime;
     const last = cues[cues.length - 1].endTime;
-    const delta = video.duration - last;
-    if (first < 15 && delta > 20 && delta < 300) return Math.round(delta);
-    if (first >= 15 && first < 90) return -Math.round(first);
-    return 0;
+    const dur = video.duration;
+    const delta = dur - last;
+    if (first < 15 && delta > 20 && delta < 300) return { s: 1, o: Math.round(delta) };
+    if (first >= 15 && first < 90) return { s: 1, o: -Math.round(first) };
+    if (first < 20 && last > 120 && delta > 300 && delta < dur * 0.12) {
+        return { s: dur / last, o: Math.round(-first * (dur / last)) };
+    }
+    return null;
 }
 
 function calibrateNow(video) {
@@ -901,11 +906,11 @@ async function loadArabicSubs(video, force) {
             setTimeout(async () => {
                 if (!video.isConnected) return;
                 const st = subState();
-                const off = hadSaved ? st.o : autoFitOffset(video, track.track);
-                if (!hadSaved && !off) return;
-                const applied = await applySubTransform(video, track, st.s, Math.round(off * 1000));
+                const need = hadSaved ? { s: st.s, o: st.o } : autoFitOffset(video, track.track);
+                if (!need) return;
+                const applied = await applySubTransform(video, track, need.s, Math.round(need.o * 1000));
                 if (applied) {
-                    if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + fmtSubState(st.s, off));
+                    if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + fmtSubState(need.s, need.o));
                 }
             }, 400);
         });
