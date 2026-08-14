@@ -431,6 +431,7 @@ async function showWatch(url, title) {
         const res = await fetch(`${API_BASE}/streams.php?url=${encodeURIComponent(url)}`);
         const data = await res.json();
         let streams = (data.streams || []).filter(s => !/morencius|earnvids/i.test(s.stream_url || ''));
+        const embedFallback = streams.filter((s) => s.stream_type === 'iframe');
 
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
@@ -463,6 +464,12 @@ async function showWatch(url, title) {
             }
         }
         streams = alive;
+        if (!streams.length && embedFallback.length) {
+            // Last resort: only broken/nonextractable embeds remain (e.g.
+            // hgcloud API down). Show the embed rather than "no results".
+            streams = embedFallback;
+            showToast(t('embed_fallback') || 'Direct streams unavailable — using embed');
+        }
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
             hideLoading();

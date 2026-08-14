@@ -54,6 +54,7 @@ const I18N = {
         player_crop: "Remove watermark (crop)",
         player_settings: "Settings",
         streams_unavailable: "unavailable stream(s) removed",
+        embed_fallback: "Direct streams unavailable — using embed",
         missing_info: "missing info",
         player_error: "error",
     },
@@ -112,6 +113,7 @@ const I18N = {
         player_crop: "إزالة العلامة المائية (قص)",
         player_settings: "الإعدادات",
         streams_unavailable: "رابط/روابط غير متوفرة تمت إزالتها",
+        embed_fallback: "الروابط المباشرة غير متوفرة — يتم استخدام المشغل المدمج",
         missing_info: "معلومات ناقصة",
         player_error: "خطأ",
     }
