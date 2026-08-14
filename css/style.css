@@ -479,7 +479,8 @@ input:focus-visible {
 
 .pc-chrome.pc-visible .pc-buttons,
 .pc-chrome.pc-visible .pc-bigplay,
-.pc-chrome.pc-visible .pc-seek-row {
+.pc-chrome.pc-visible .pc-seek-row,
+.pc-chrome.pc-visible .pc-controls {
     pointer-events: auto;
 }
 
@@ -487,7 +488,7 @@ input:focus-visible {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, transparent 35%, transparent 60%, rgba(0,0,0,0.75) 100%);
+    background: transparent;
 }
 
 .pc-bigplay {
@@ -986,7 +987,8 @@ input:focus-visible {
 }
 
 /* iframe mode: our bottom bar stays visible and COVERS the embed's own
-   controls (cross-origin, can't touch their DOM) — solid bg + click shield */
+   controls (cross-origin, can't touch their DOM) — SOLID bar (no see-through
+   gradient, so the embed's UI never shows as a dark rectangle) */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
 }
@@ -997,8 +999,8 @@ input:focus-visible {
 
 .pc-iframe-chrome.pc-visible .pc-controls {
     pointer-events: auto;
-    background: linear-gradient(0deg, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 45%, rgba(0,0,0,0.35) 100%);
-    padding-top: 34px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.985) 0%, rgba(0,0,0,0.985) 50%, rgba(0,0,0,0.93) 100%);
+    padding-top: 46px;
 }
 
 .pc-iframe-chrome .pc-controls .pc-buttons {

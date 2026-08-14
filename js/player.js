@@ -166,6 +166,7 @@ function buildPlayerChrome(video, container) {
                 <span class="pc-time">0:00 / 0:00</span>
                 <div class="pc-spacer"></div>
                 <button class="pc-btn pc-crop" title="${tt('player_crop', 'Remove watermark (crop)')}">${ICONS.crop}</button>
+                <button class="pc-btn pc-quality" style="display:none" title="${tt('player_quality', 'Quality')}">Auto</button>
                 <button class="pc-btn pc-settings" title="${tt('player_settings', 'Settings')}">${ICONS.gear}</button>
                 <button class="pc-btn pc-cc" title="${tt('player_cc', 'Subtitles')}">${ICONS.cc}</button>
                 <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
@@ -186,6 +187,7 @@ function buildPlayerChrome(video, container) {
     const muteBtn = chrome.querySelector('.pc-mute');
     const volRange = chrome.querySelector('.pc-vol');
     const cropBtn = chrome.querySelector('.pc-crop');
+    const qualityBtn = chrome.querySelector('.pc-quality');
     const settingsBtn = chrome.querySelector('.pc-settings');
     const ccBtn = chrome.querySelector('.pc-cc');
     const fsBtn = chrome.querySelector('.pc-fs');
@@ -235,9 +237,12 @@ function buildPlayerChrome(video, container) {
     video.addEventListener('play', () => { setPlayIcon(true); showChrome(); });
     video.addEventListener('pause', () => { setPlayIcon(false); showChrome(); });
     video.addEventListener('click', () => { togglePlay(); showChrome(); });
+    video.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        toggleFullscreen(container);
+    });
     container.addEventListener('mousemove', showChrome);
     container.addEventListener('touchstart', showChrome, { passive: true });
-    container.addEventListener('dblclick', () => toggleFullscreen(container));
 
     video.addEventListener('timeupdate', () => {
         const d = video.duration || 0;
@@ -322,17 +327,30 @@ function buildPlayerChrome(video, container) {
     settingsBtn.onclick = (e) => {
         e.stopPropagation();
         const menu = getSettingsMenu();
+        const qmenu = container.querySelector('.pc-qmenu');
+        if (qmenu) qmenu.classList.remove('pc-open');
         menu.classList.toggle('pc-open');
         showChrome();
     };
     document.addEventListener('click', (e) => {
-        const menu = container.querySelector('.pc-menu');
-        if (menu && menu.classList.contains('pc-open') && !menu.contains(e.target) && e.target !== settingsBtn) {
-            menu.classList.remove('pc-open');
-        }
+        container.querySelectorAll('.pc-menu').forEach((m) => {
+            if (m.classList.contains('pc-open') && !m.contains(e.target) && e.target !== settingsBtn && e.target !== qualityBtn) {
+                m.classList.remove('pc-open');
+            }
+        });
     });
 
     fsBtn.onclick = () => toggleFullscreen(container);
+
+    qualityBtn.onclick = (e) => {
+        e.stopPropagation();
+        const menu = buildQualityMenu(container, hlsInstance, qualityBtn);
+        if (!menu) return;
+        const smenu = container.querySelector('.pc-menu');
+        if (smenu) smenu.classList.remove('pc-open');
+        menu.classList.toggle('pc-open');
+        showChrome();
+    };
 
     ccBtn.onclick = (e) => {
         e.stopPropagation();
@@ -443,6 +461,45 @@ function getSettingsMenu() {
 
 function setupQualityMenu(hls) {
     window._pcHls = hls;
+    const btn = document.querySelector('.pc-quality');
+    if (!btn) return;
+    const levels = hls.levels || [];
+    if (levels.length > 1) {
+        btn.style.display = 'flex';
+        const label = () => {
+            if (hls.autoLevelEnabled || hls.currentLevel === -1) return 'Auto';
+            const lvl = levels[hls.currentLevel];
+            return lvl && lvl.height ? lvl.height + 'p' : 'Auto';
+        };
+        btn.textContent = label();
+        hls.on(Hls.Events.LEVEL_SWITCHED, () => { btn.textContent = label(); });
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function buildQualityMenu(container, hls, anchorBtn) {
+    container.querySelectorAll('.pc-qmenu').forEach((m) => m.remove());
+    if (!hls || !hls.levels || hls.levels.length < 2) return null;
+    const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
+    const menu = document.createElement('div');
+    menu.className = 'pc-menu pc-qmenu';
+    const cur = hls.currentLevel;
+    let html = `<div class="pc-menu-sec">${tt('player_quality', 'Quality')}</div><div class="pc-menu-list">`;
+    html += `<button class="pc-menu-item ${cur === -1 ? 'pc-on' : ''}" data-q="-1"><span>Auto</span><i>${ICONS.check}</i></button>`;
+    hls.levels.forEach((lvl, i) => {
+        html += `<button class="pc-menu-item ${cur === i ? 'pc-on' : ''}" data-q="${i}"><span>${lvl.height || 'HD'}p</span><i>${ICONS.check}</i></button>`;
+    });
+    html += '</div>';
+    menu.innerHTML = html;
+    container.appendChild(menu);
+    menu.querySelectorAll('[data-q]').forEach((b) => {
+        b.onclick = () => {
+            hls.currentLevel = parseInt(b.dataset.q, 10);
+            menu.classList.remove('pc-open');
+        };
+    });
+    return menu;
 }
 
 function toggleFullscreen(el) {
