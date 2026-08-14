@@ -52,7 +52,7 @@ function vttFromCache($id) {
     try {
         dbInit();
         $row = Database::fetchOne("SELECT vtt, created_at FROM subs_cache WHERE id = ?", [$id]);
-        if ($row && (time() - (int)$row['created_at']) < 2592000) return $row['vtt'];
+        if ($row && (time() - (int)$row['created_at']) < 2592000) return ['vtt' => $row['vtt'], 'created_at' => (int)$row['created_at']];
     } catch (Exception $e) { /* db down -> re-scrape */ }
     return null;
 }
@@ -198,12 +198,12 @@ function srtToVtt($srt) {
 if (isset($_GET['id'])) {
     $id = preg_replace('/[^a-f0-9]/', '', $_GET['id']);
     if (strlen($id) !== 32) { http_response_code(400); exit; }
-    $vtt = vttFromCache($id);
-    if ($vtt === null) { http_response_code(404); exit; }
+    $row = vttFromCache($id);
+    if ($row === null) { http_response_code(404); exit; }
     header('Content-Type: text/vtt; charset=utf-8');
-    header('Cache-Control: public, max-age=86400');
+    header('Cache-Control: public, max-age=3600');
     header('Access-Control-Allow-Origin: *');
-    echo $vtt;
+    echo $row['vtt'];
     exit;
 }
 
@@ -215,9 +215,9 @@ $season = (int)($_GET['season'] ?? 0);
 $episode = (int)($_GET['episode'] ?? 0);
 
 $id = md5(strtolower(trim($q)) . '|' . ($isTv ? "tv:$season:$episode" : 'movie'));
-$vtt = vttFromCache($id);
-if ($vtt !== null) {
-    echo json_encode(['ok' => true, 'lang' => 'ar', 'url' => 'api/subs.php?id=' . $id]);
+$row = vttFromCache($id);
+if ($row !== null) {
+    echo json_encode(['ok' => true, 'lang' => 'ar', 'url' => 'api/subs.php?id=' . $id . '&v=' . $row['created_at']]);
     exit;
 }
 
@@ -245,4 +245,4 @@ $vtt = srtToVtt($srt);
 if (trim($vtt) === 'WEBVTT') { echo json_encode(['ok' => false, 'error' => 'empty subtitles']); exit; }
 
 storeVtt($id, $vtt);
-echo json_encode(['ok' => true, 'lang' => 'ar', 'url' => 'api/subs.php?id=' . $id]);
+echo json_encode(['ok' => true, 'lang' => 'ar', 'url' => 'api/subs.php?id=' . $id . '&v=' . time()]);
