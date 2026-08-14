@@ -62,6 +62,7 @@ function initPlayer(streamUrl, streamType, containerId) {
             hlsInstance.on(Hls.Events.ERROR, (event, data) => {
                 if (data.fatal) {
                     console.error('HLS fatal error:', data);
+                    if (typeof window._pcOnPlayerError === 'function') window._pcOnPlayerError();
                     hlsInstance.destroy();
                 }
             });
@@ -259,6 +260,9 @@ function buildPlayerChrome(video, container) {
     video.addEventListener('playing', () => loading.classList.remove('pc-show'));
     video.addEventListener('canplay', () => loading.classList.remove('pc-show'));
     video.addEventListener('loadedmetadata', () => loading.classList.remove('pc-show'));
+    video.addEventListener('error', () => {
+        if (video.getAttribute('src') && typeof window._pcOnPlayerError === 'function') window._pcOnPlayerError();
+    });
     video.addEventListener('error', () => {
         loading.classList.remove('pc-show');
         bigplay.classList.remove('pc-hidden');

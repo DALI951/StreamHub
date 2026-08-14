@@ -101,18 +101,20 @@ function releaseScore($name) {
 }
 
 function collectZips($html) {
-    // entry blocks: release name (with SxxEyy) ... dl.subdl.com zip link
+    // entry block structure: ... <h4>Release.Name</h4> ... dl.subdl.com zip link
+    // the release name for a zip sits BEFORE its zip link
     $out = [];
     $parts = preg_split('#https://dl\.subdl\.com/subtitle/#', $html);
     array_shift($parts);
     foreach ($parts as $i => $seg) {
         if (!preg_match('#^(\d+)-(\d+)\.zip#', $seg, $zm)) continue;
         $zip = 'https://dl.subdl.com/subtitle/' . $zm[1] . '-' . $zm[2] . '.zip';
-        $before = $i === 0 ? $seg : $parts[$i - 1];
-        $ctx = substr($seg, 0, 2500);
+        $prev = $parts[$i - 1];
         $name = '';
-        if (preg_match('#<h4[^>]*>([^<]+)</h4>#i', $ctx, $hm)) $name = trim($hm[1]);
-        if (preg_match('/(S\d{1,2}E\d{1,2}|s\d{1,2}e\d{1,2})/', $name, $em)) {
+        if (preg_match_all('#<h4[^>]*>([^<]+)</h4>#i', $prev, $hm) && !empty($hm[1])) {
+            $name = trim(end($hm[1]));
+        }
+        if (preg_match('/(S\d{1,2}E\d{1,2})/i', $name, $em)) {
             $out[] = ['zip' => $zip, 'name' => $name, 'ep' => strtoupper($em[1]), 'score' => releaseScore($name)];
         } else {
             $out[] = ['zip' => $zip, 'name' => $name, 'ep' => '', 'score' => releaseScore($name)];
@@ -122,15 +124,23 @@ function collectZips($html) {
 }
 
 function pickZip($zips, $season, $episode, $isTv) {
-    $best = null;
+    $exact = null;
+    $pack = null;
     foreach ($zips as $z) {
         if ($isTv) {
-            if (!preg_match('/^S(\d{1,2})E(\d{1,2})$/', $z['ep'], $em)) continue;
-            if ((int)$em[1] !== $season || (int)$em[2] !== $episode) continue;
+            if (preg_match('/^S(\d{1,2})E(\d{1,2})$/', $z['ep'], $em)) {
+                if ((int)$em[1] === $season && (int)$em[2] === $episode) {
+                    if ($exact === null || $z['score'] > $exact['score']) $exact = $z;
+                }
+                continue;
+            }
+            // whole-season pack (no episode number): fallback only
+            if ($pack === null || $z['score'] > $pack['score']) $pack = $z;
+        } else {
+            if ($exact === null || $z['score'] > $exact['score']) $exact = $z;
         }
-        if ($best === null || $z['score'] > $best['score']) $best = $z;
     }
-    return $best;
+    return $exact ?? $pack;
 }
 
 function srtFromZip($zipUrl) {

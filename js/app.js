@@ -469,34 +469,38 @@ async function showWatch(url, title) {
         }
         streams = alive;
         if (!streams.length) {
-            // No direct streams survived. Try VidSrc (our own player, zero
-            // watermark) BEFORE falling back to embeds.
-            if (await playVidsrc()) {
-                app.innerHTML = `
-                    <div class="max-w-6xl mx-auto px-4 py-6 animate-in">
-                        <button onclick="history.back()" class="mb-4 text-gray-400 hover:text-white transition flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                            <span>${t('back')}</span>
+            // Last resort if VidSrc's retries exhaust: init the embed anyway.
+            window._pcEmbedFallback = () => {
+                if (!embedFallback.length) return;
+                const c = document.getElementById('playerContainer');
+                if (c && !c.querySelector('video, iframe')) {
+                    initPlayer(embedFallback[0].stream_url, 'iframe', 'playerContainer');
+                }
+            };
+            // No direct streams survived. Auto VidSrc (our own player, zero
+            // watermark) with automatic retries until something plays.
+            app.innerHTML = `
+                <div class="max-w-6xl mx-auto px-4 py-6 animate-in">
+                    <button onclick="history.back()" class="mb-4 text-gray-400 hover:text-white transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                        <span>${t('back')}</span>
+                    </button>
+                    ${title ? `<h1 class="text-2xl font-bold mb-4">${title}</h1>` : ''}
+                    <div id="playerContainer" class="player-wrap w-full rounded-xl overflow-hidden bg-black mb-6"></div>
+                    <div class="flex flex-wrap gap-2 mb-6">
+                        <button onclick="switchVidsrc()" data-vidsrc="1"
+                            class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-red-600 text-white"
+                            title="VidSrc (English)">
+                            VidSrc <span class="stream-dot"></span>
                         </button>
-                        ${title ? `<h1 class="text-2xl font-bold mb-4">${title}</h1>` : ''}
-                        <div id="playerContainer" class="player-wrap w-full rounded-xl overflow-hidden bg-black mb-6"></div>
-                        <div class="flex flex-wrap gap-2 mb-6">
-                            <button onclick="switchVidsrc()" data-vidsrc="1"
-                                class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-red-600 text-white"
-                                title="VidSrc (English)">
-                                VidSrc <span class="stream-dot"></span>
-                            </button>
-                        </div>
                     </div>
-                `;
-                hideLoading();
-                return;
-            }
-            if (embedFallback.length) {
-                // Last resort: only broken/nonextractable embeds remain.
-                streams = embedFallback;
-                showToast(t('embed_fallback') || 'Direct streams unavailable — using embed');
-            }
+                    <div id="watchExtras"></div>
+                </div>
+            `;
+            autoVidsrc();
+            renderWatchExtras();
+            hideLoading();
+            return;
         }
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
@@ -529,6 +533,7 @@ async function showWatch(url, title) {
                         VidSrc <span class="stream-dot"></span>
                     </button>
                 </div>
+                <div id="watchExtras"></div>
             </div>
         `;
 
@@ -562,6 +567,9 @@ async function showWatch(url, title) {
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(playable, url, title);
+        window._pcOnPlayerError = () => autoVidsrc();
+        watchPlayback();
+        renderWatchExtras();
     } catch (e) {
         app.innerHTML = `<div class="text-center py-20 text-gray-500">Error loading streams</div>`;
     }
@@ -577,7 +585,99 @@ function updateStreamBadges() {
 }
 
 const AR_ORDINALS = { 'الاول': 1, 'الأول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4, 'الخامس': 5, 'السادس': 6, 'السابع': 7, 'الثامن': 8, 'التاسع': 9, 'العاشر': 10, 'الحادي عشر': 11, 'الثاني عشر': 12 };
+const AR_ORD_WORDS = { 1: 'الأول', 2: 'الثاني', 3: 'الثالث', 4: 'الرابع', 5: 'الخامس', 6: 'السادس', 7: 'السابع', 8: 'الثامن', 9: 'التاسع', 10: 'العاشر', 11: 'الحادي عشر', 12: 'الثاني عشر' };
 const titleCase = (s) => s.split(' ').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+
+function watchCtx() {
+    const url = window._watchPageUrl || '';
+    const m = url.match(/-s(\d+)e(\d+)/i);
+    if (m) return { watchUrl: url, season: parseInt(m[1], 10), episode: parseInt(m[2], 10), seriesStem: url.replace(/-s\d+e\d+/i, '') };
+    const ar = url.match(/([^/]+)-الموسم-([^-]+)-الحلقة-?(\d+)/i);
+    if (ar) {
+        const sn = AR_ORDINALS[ar[2]] || parseInt(ar[2], 10) || 1;
+        return { watchUrl: url, season: sn, episode: parseInt(ar[3], 10) || 1, seriesStem: ar[1], arabic: true };
+    }
+    return { watchUrl: url, season: null, episode: null, seriesStem: null };
+}
+
+function seasonOrdinal(u) {
+    const d = decodeURIComponent(u);
+    const ar = d.match(/الموسم-([^-]+)/);
+    if (ar && AR_ORDINALS[ar[1]]) return AR_ORDINALS[ar[1]];
+    const em = d.match(/s(\d+)/i);
+    return em ? parseInt(em[1], 10) : 999;
+}
+
+async function renderWatchExtras() {
+    const host = document.getElementById('watchExtras');
+    if (!host) return;
+    const ctx = watchCtx();
+    if (!ctx.seriesStem) return;
+    const stem = decodeURIComponent(ctx.seriesStem).replace(/^مسلسل-?/, '');
+    let html = '';
+
+    if (ctx.season && ctx.arabic) {
+        const word = AR_ORD_WORDS[ctx.season];
+        if (word) {
+            try {
+                const res = await fetch(`${API_BASE}/details.php?source=egydead&slug=${encodeURIComponent('egydead/season/' + ctx.seriesStem + '-الموسم-' + word)}`);
+                const data = await res.json();
+                const eps = (data.details && data.details.episodes) || [];
+                if (eps.length) {
+                    const cur = eps.findIndex((e) => decodeURIComponent(e.url) === decodeURIComponent(ctx.watchUrl));
+                    const canPrev = cur > 0;
+                    const canNext = cur >= 0 && cur < eps.length - 1;
+                    const jump = (k) => `navigateTo('watch','${eps[k].url.replace(/'/g, "\\'")}')`;
+                    html += `<div class="flex gap-3 mb-2">
+                        <button onclick="${canPrev ? jump(cur - 1) : 'null'}" class="watch-nav ${canPrev ? 'watch-nav-on' : 'watch-nav-off'}">← ${t('prev_episode')}</button>
+                        <button onclick="${canNext ? jump(cur + 1) : 'null'}" class="watch-nav ${canNext ? 'watch-nav-on' : 'watch-nav-off'}">${t('next_episode')} →</button>
+                    </div>`;
+                    html += `<h2 class="text-lg font-bold mt-8 mb-3">${t('episodes')} (${eps.length})</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-8">` +
+                        eps.map((ep, k) => `
+                        <button onclick="${jump(k)}"
+                            class="episode-btn bg-gray-900 border rounded-xl p-4 text-center transition ${k === cur ? 'border-red-500 bg-red-500/10' : 'border-gray-800 hover:border-red-500/50'}">
+                            <span class="block text-2xl font-bold">${k + 1}</span>
+                            <span class="text-xs text-gray-500 mt-1 block">${t('episode')} ${k + 1}</span>
+                        </button>`).join('') + `</div>`;
+                }
+            } catch (e) { /* season list unavailable */ }
+        }
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/search.php?q=${encodeURIComponent(stem)}`);
+        const data = await res.json();
+        const seasons = (data.results || [])
+            .filter((r) => r.type === 'season' && decodeURIComponent(r.url).includes(stem))
+            .sort((a, b) => seasonOrdinal(a.url) - seasonOrdinal(b.url));
+        if (seasons.length > 1) {
+            html += `<h2 class="text-lg font-bold mb-3">${t('seasons')}</h2>
+                <div class="flex flex-wrap gap-2 mb-8">` +
+                seasons.map((s) => `
+                    <button onclick="navigateTo('detail','${s.url.replace(/'/g, "\\'")}')"
+                        class="px-4 py-2 rounded-lg text-sm transition ${seasonOrdinal(s.url) === ctx.season ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}">${t('season')} ${seasonOrdinal(s.url)}</button>`).join('') + `</div>`;
+        }
+    } catch (e) { /* seasons unavailable */ }
+
+    try {
+        const res = await fetch(`${API_BASE}/home.php`);
+        const data = await res.json();
+        const items = (data.categories && data.categories.length ? data.categories[0].items : []).slice(0, 12);
+        if (items.length) {
+            html += `<h2 class="text-lg font-bold mb-3">${t('more_like')}</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">` +
+                items.map((it) => `
+                    <button onclick="navigateTo('${it.type === 'episode' ? 'watch' : 'detail'}','${it.url.replace(/'/g, "\\'")}')"
+                        class="group text-left">
+                        ${it.poster ? `<img src="${imgUrl(it.poster)}" loading="lazy" class="w-full aspect-[2/3] object-cover rounded-xl bg-gray-900 group-hover:opacity-80 transition">` : '<div class="w-full aspect-[2/3] bg-gray-900 rounded-xl"></div>'}
+                        <span class="block text-xs text-gray-400 mt-2 line-clamp-2">${it.title}</span>
+                    </button>`).join('') + `</div>`;
+        }
+    } catch (e) { /* more-like unavailable */ }
+
+    host.innerHTML = html;
+}
 
 function vidsrcQueryFromWatch() {
     const url = window._watchPageUrl || '';
@@ -616,7 +716,70 @@ async function playVidsrc() {
 }
 
 async function switchVidsrc() {
+    window._pcUserSwitchAt = Date.now();
     await playVidsrc();
+}
+
+let _pcWatchTimer = null;
+let _pcVidsrcAttempts = 0;
+
+// Watch the active player: if the video never starts (or dies mid-playback)
+// or the active source is a dead embed, auto-press VidSrc until something
+// actually plays.
+function watchPlayback() {
+    const video = document.getElementById('videoPlayer');
+    const iframe = document.querySelector('#playerContainer iframe');
+    clearTimeout(_pcWatchTimer);
+    if (video) {
+        window._pcPlaying = !video.paused;
+        const started = () => { window._pcPlaying = true; };
+        video.removeEventListener('playing', started);
+        video.addEventListener('playing', started);
+        _pcWatchTimer = setTimeout(() => {
+            if (window._pcPlaying) return;
+            if (Date.now() - (window._pcUserSwitchAt || 0) < 20000) { watchPlayback(); return; }
+            showToast(t('stream_failed') || 'Stream not playing — switching source');
+            autoVidsrc();
+        }, 15000);
+    } else if (iframe) {
+        // embeds can't be observed cross-origin: auto-try VidSrc over them
+        window._pcPlaying = false;
+        _pcWatchTimer = setTimeout(() => {
+            if (Date.now() - (window._pcUserSwitchAt || 0) < 20000) return;
+            autoVidsrc();
+        }, 6000);
+        iframe.addEventListener('error', () => autoVidsrc());
+    } else {
+        window._pcPlaying = false;
+    }
+}
+
+async function autoVidsrc() {
+    const video = document.getElementById('videoPlayer');
+    if (window._pcPlaying && video) return;
+    if (window._pcVidsrcBusy) return;
+    window._pcVidsrcBusy = true;
+    let ok = false;
+    try {
+        ok = await playVidsrc();
+    } finally {
+        window._pcVidsrcBusy = false;
+    }
+    if (ok) {
+        _pcVidsrcAttempts = 0;
+        watchPlayback();
+        return true;
+    }
+    if (_pcVidsrcAttempts < 6) {
+        _pcVidsrcAttempts++;
+        showToast('VidSrc ' + (t('retrying') || 'retrying…') + ' (' + _pcVidsrcAttempts + '/6)');
+        clearTimeout(_pcWatchTimer);
+        _pcWatchTimer = setTimeout(autoVidsrc, 5000);
+    } else {
+        showToast(t('embed_fallback') || 'No working stream');
+        if (typeof window._pcEmbedFallback === 'function') window._pcEmbedFallback();
+    }
+    return false;
 }
 
 async function probeStream(stream) {    try {
@@ -682,6 +845,7 @@ function startInstaller(stream, pageUrl, title) {
 }
 
 function switchStream(index) {
+    window._pcUserSwitchAt = Date.now();
     const stream = window._streams[index];
     if (!stream) return;
     if (window.Installer) Installer.stop();
@@ -697,6 +861,7 @@ function switchStream(index) {
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(playable, window._watchPageUrl || '', window._watchTitle || '');
+        watchPlayback();
         const q = playable.quality_label || 'Auto';
         showToast(`${t('now_playing')}: ${q} · ${u ? t('direct') : t('external')}`);
     });
