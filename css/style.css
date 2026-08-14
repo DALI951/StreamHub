@@ -980,37 +980,34 @@ input:focus-visible {
 }
 
 /* iframe mode: NO bottom bar — the embed's own player stays usable. Our fs
-   button sits on top of the embed's (bottom-right, bigger = covers it) and
-   the whole overlay auto-hides after 3s idle. */
+   button is a fully TRANSPARENT hit-zone sitting exactly over the embed's
+   zoom button (bottom-right) — looks like their icon, but ours works. The
+   brand pill auto-hides after 3s idle. */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
 }
 
 .pc-iframe-chrome .pc-corner-buttons {
     position: absolute;
-    bottom: 12px;
-    right: 14px;
-    display: flex;
-    gap: 6px;
-    pointer-events: none;
-}
-
-.pc-iframe-chrome.pc-visible .pc-corner-buttons {
+    bottom: 6px;
+    right: 6px;
+    width: 48px;
+    height: 48px;
     pointer-events: auto;
 }
 
 .pc-iframe-chrome .pc-corner-buttons .pc-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    background: rgba(3,7,18,0.55);
-    border: 1px solid rgba(255,255,255,0.1);
-    backdrop-filter: blur(6px);
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    color: transparent;
 }
 
 [dir="rtl"] .pc-iframe-chrome .pc-corner-buttons {
     right: auto;
-    left: 14px;
+    left: 6px;
 }
 
 .pc-sub-disabled {
