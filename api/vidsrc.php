@@ -353,6 +353,7 @@ if (is_string($su)) {
 // ---- token ----
 $token = $j['data']['token'] ?? '';
 $pick = null;
+$bestHeight = 0;
 foreach ($urls as $u) {
     $u = trim($u);
     if ($u === '' || !preg_match('#^https?://#i', $u)) continue;
@@ -365,9 +366,17 @@ foreach ($urls as $u) {
     }
     $u2 = $u . (strpos($u, '?') !== false ? '&' : '?') . 'token=' . rawurlencode($token);
     $chk = fetchText($u2, 'https://' . (parse_url($u, PHP_URL_HOST) ?: ''), null, null, 'application/vnd.apple.mpegurl');
-    if ($chk !== null && strpos($chk, '#EXTM3U') !== false) {
+    if ($chk === null || strpos($chk, '#EXTM3U') === false) continue;
+    // pick the stream whose master has the HIGHEST video resolution (1080p
+    // source may appear only in a later stream URL, not the first one)
+    $height = 0;
+    if (preg_match_all('/RESOLUTION=\d+x(\d+)/', $chk, $rm)) {
+        foreach ($rm[1] as $hh) $height = max($height, (int)$hh);
+    }
+    dbg("stream candidate $u2 -> " . ($height ?: '?') . "p");
+    if ($pick === null || $height > $bestHeight) {
         $pick = $u2;
-        break;
+        $bestHeight = $height;
     }
 }
 if (!$pick) {
@@ -384,6 +393,6 @@ echo json_encode([
     'ok' => true,
     'type' => 'hls',
     'url' => proxyUrl($pick),
-    'quality_label' => 'VidSrc',
+    'quality_label' => $bestHeight ? 'VidSrc ' . $bestHeight . 'p' : 'VidSrc',
     'subs' => [],
 ]);

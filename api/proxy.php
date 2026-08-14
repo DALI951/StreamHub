@@ -180,7 +180,7 @@ function rewritePlaylist(string $body, string $base, bool $dl, string $ref = '')
             continue;
         }
         if ($line[0] === '#') {
-            if (preg_match('#^#EXT-X-(MAP|KEY):#i', $line)) {
+            if (preg_match('#^#EXT-X-(MAP|KEY|MEDIA):#i', $line)) {
                 $line = preg_replace_callback('/URI="([^"]+)"/', function ($mm) use ($base, $q, $tok) {
                     global $apiBase;
                     return 'URI="' . $apiBase . '/proxy.php?url=' . rawurlencode(resolveUrl($base, $mm[1])) . $q . $tok . '"';

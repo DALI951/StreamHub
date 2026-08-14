@@ -49,9 +49,15 @@ function initPlayer(streamUrl, streamType, containerId) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
                 video.play().catch(() => {});
                 setupQualityMenu(hlsInstance);
+                // hls.js auto-quality starts low and ramps up slowly; jump
+                // straight to the best quality the source offers.
+                if (hlsInstance.levels && hlsInstance.levels.length > 1) {
+                    hlsInstance.currentLevel = hlsInstance.levels.length - 1;
+                }
             });
             hlsInstance.on(Hls.Events.SUBTITLE_TRACKS_LOADED, () => {
                 buildSubtitlePanel(video, container);
+                autoEnableArabic(video);
             });
             hlsInstance.on(Hls.Events.ERROR, (event, data) => {
                 if (data.fatal) {
@@ -61,12 +67,19 @@ function initPlayer(streamUrl, streamType, containerId) {
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = streamUrl;
-            video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
+            video.addEventListener('loadedmetadata', () => {
+                video.play().catch(() => {});
+                buildSubtitlePanel(video, container);
+                autoEnableArabic(video);
+            });
         }
     } else {
         video.src = streamUrl;
-        video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
-        buildSubtitlePanel(video, container);
+        video.addEventListener('loadedmetadata', () => {
+            video.play().catch(() => {});
+            buildSubtitlePanel(video, container);
+            autoEnableArabic(video);
+        });
     }
 }
 
@@ -107,7 +120,6 @@ const ICONS = {
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     cc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M13 15h4M7 11h2M11 11h6"/></svg>',
     spinner: '<svg class="pc-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>',
-    crop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
 };
 
@@ -138,7 +150,6 @@ function buildPlayerChrome(video, container) {
                 <input type="range" class="pc-vol" min="0" max="100" value="100">
                 <span class="pc-time">0:00 / 0:00</span>
                 <div class="pc-spacer"></div>
-                <button class="pc-btn pc-crop" title="${tt('player_crop', 'Remove watermark (crop)')}">${ICONS.crop}</button>
                 <button class="pc-btn pc-quality" style="display:none" title="${tt('player_quality', 'Quality')}">Auto</button>
                 <button class="pc-btn pc-settings" title="${tt('player_settings', 'Settings')}">${ICONS.gear}</button>
                 <button class="pc-btn pc-cc" title="${tt('player_cc', 'Subtitles')}">${ICONS.cc}</button>
@@ -159,16 +170,10 @@ function buildPlayerChrome(video, container) {
     const hoverTime = chrome.querySelector('.pc-hover-time');
     const muteBtn = chrome.querySelector('.pc-mute');
     const volRange = chrome.querySelector('.pc-vol');
-    const cropBtn = chrome.querySelector('.pc-crop');
     const qualityBtn = chrome.querySelector('.pc-quality');
     const settingsBtn = chrome.querySelector('.pc-settings');
     const ccBtn = chrome.querySelector('.pc-cc');
     const fsBtn = chrome.querySelector('.pc-fs');
-
-    if (localStorage.getItem('pc_crop') === '1') {
-        container.classList.add('pc-cropped');
-        cropBtn.classList.add('pc-active');
-    }
 
     const fmt = (s) => {
         if (!isFinite(s)) s = 0;
@@ -289,13 +294,6 @@ function buildPlayerChrome(video, container) {
         volRange.value = video.volume * 100;
         muteBtn.innerHTML = video.volume === 0 ? ICONS.mute : ICONS.vol;
     });
-
-    cropBtn.onclick = () => {
-        const on = container.classList.toggle('pc-cropped');
-        localStorage.setItem('pc_crop', on ? '1' : '0');
-        cropBtn.classList.toggle('pc-active', on);
-        showChrome();
-    };
 
     settingsBtn.onclick = (e) => {
         e.stopPropagation();
@@ -533,17 +531,23 @@ function openSubtitlePanel(video, container, btn) {
     if (existing) { existing.remove(); return; }
     const panel = document.createElement('div');
     panel.className = 'sub-panel';
+    let activeIdx = -1;
     let tracks = '';
     const native = video.textTracks || [];
     for (let i = 0; i < native.length; i++) {
         const tr = native[i];
         if (tr.kind !== 'subtitles' && tr.kind !== 'captions') continue;
-        tracks += `<button class="sub-track" data-idx="${i}">${tr.label || 'Track ' + (i + 1)}</button>`;
+        if (tr.mode === 'showing') activeIdx = i;
+        tracks += `<button class="sub-track ${tr.mode === 'showing' ? 'pc-on' : ''}" data-idx="${i}">${tr.label || 'Track ' + (i + 1)}</button>`;
     }
     if (!tracks) tracks = '<div class="sub-none">' + t('subs_none') + '</div>';
+    const offCls = activeIdx === -1 ? 'pc-on' : '';
     panel.innerHTML = `
         <div class="sub-panel-title">${t('subs_title')}</div>
-        <div class="sub-tracks">${tracks}</div>
+        <div class="sub-tracks">
+            <button class="sub-track ${offCls}" data-idx="-1">${t('subs_off')}</button>
+            ${tracks}
+        </div>
         <label class="sub-upload">
             <input type="file" accept=".vtt,.srt" class="sub-file">
             ${t('subs_upload')}
@@ -554,10 +558,12 @@ function openSubtitlePanel(video, container, btn) {
     panel.querySelectorAll('.sub-track').forEach(b => {
         b.onclick = () => {
             const idx = parseInt(b.dataset.idx, 10);
-            const tr = video.textTracks[idx];
+            window._pcSubsPicked = true;
             for (const t of video.textTracks) t.mode = 'disabled';
-            if (tr) tr.mode = 'showing';
-            saveSubtitleChoice(null);
+            if (idx >= 0) {
+                const tr = video.textTracks[idx];
+                if (tr) tr.mode = 'showing';
+            }
             panel.remove();
         };
     });
@@ -566,6 +572,7 @@ function openSubtitlePanel(video, container, btn) {
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];
         if (!file) return;
+        window._pcSubsPicked = true;
         const reader = new FileReader();
         reader.onload = () => {
             const text = String(reader.result || '');
@@ -580,7 +587,21 @@ function openSubtitlePanel(video, container, btn) {
     });
 }
 
+function autoEnableArabic(video) {
+    if (!video || window._pcSubsPicked) return;
+    const trs = video.textTracks || [];
+    for (let i = 0; i < trs.length; i++) {
+        const tr = trs[i];
+        if (tr.kind !== 'subtitles' && tr.kind !== 'captions') continue;
+        if (!/ar|عرب|arab/i.test(tr.label || '')) continue;
+        for (const t of trs) t.mode = 'disabled';
+        tr.mode = 'showing';
+        return;
+    }
+}
+
 function injectSubtitleTrack(video, url, label) {
+    window._pcSubsPicked = true;
     for (const tr of video.textTracks) tr.mode = 'disabled';
     const track = document.createElement('track');
     track.kind = 'subtitles';

@@ -328,6 +328,17 @@ video:-webkit-full-screen {
     color: #fff;
 }
 
+.sub-track.pc-on {
+    background: rgba(239,68,68,0.25);
+    color: #fff;
+}
+
+.sub-track.pc-on::after {
+    content: "✓";
+    float: right;
+    color: #ef4444;
+}
+
 .sub-none {
     font-size: 12px;
     color: #9ca3af;
@@ -865,13 +876,6 @@ input:focus-visible {
 
 [dir="rtl"] .pc-menu-item {
     text-align: right;
-}
-
-/* ============ WATERMARK CROP ============ */
-
-.pc-cropped .stream-video {
-    transform: scale(1.15);
-    transform-origin: 100% 100%;
 }
 
 /* ============ PLAYER BRAND + TOAST + HOME ============ */
