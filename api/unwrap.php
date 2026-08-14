@@ -434,8 +434,50 @@ if (strpos($host, 'morencius.com') !== false || strpos($host, 'earnvids.com') !=
     }
     $result = ['ok' => true, 'type' => strpos($file, '.m3u8') !== false ? 'hls' : 'mp4', 'url' => $file, 'subs' => []];
 } else {
-    echo json_encode(['ok' => false, 'error' => 'unsupported host']);
-    exit;
+    // ---- Universal fallback ("watermark removal") ----
+    // Fetch the embed page and scan it for a direct video URL. If the host
+    // leaks an m3u8/mp4 anywhere (video tags, JSON config, unescape blocks),
+    // we rip it out of the iframe and play it in OUR clean player — no
+    // watermark, no broken embed controls.
+    if (isset($_GET['debug'])) {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "EMBED: $embed\n";
+    }
+    $page = fetchUrl($embed, $embed);
+    if ($page === null) {
+        echo json_encode(['ok' => false, 'error' => 'embed unreachable']);
+        exit;
+    }
+    if (isset($_GET['debug'])) {
+        echo 'LEN: ' . strlen($page) . "\n";
+        echo substr($page, 0, 2000);
+        exit;
+    }
+    $file = null;
+    if (preg_match('#<video[^>]+src=["\']([^"\']+)["\']#i', $page, $vm)) {
+        $file = $vm[1];
+    } elseif (preg_match('#<source[^>]+src=["\']([^"\']+)["\']#i', $page, $vm)) {
+        $file = $vm[1];
+    }
+    if (!$file && preg_match_all('#["\'](?:file|src|url|hls|mp4|stream)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mp4)[^"\']*)["\']#i', $page, $um)) {
+        foreach ($um[1] as $cand) {
+            if ($cand !== '') { $file = $cand; break; }
+        }
+    }
+    if (!$file && preg_match('#unescape\(\'([^\']+)\'\)#i', $page, $im)) {
+        $dec = html_entity_decode(stripcslashes($im[1]), ENT_QUOTES);
+        if (preg_match('#https?://[^"\']+\.(?:m3u8|mp4)[^"\']*#i', $dec, $dm)) {
+            $file = $dm[0];
+        }
+    }
+    if (!$file && preg_match('#https?://[^"\']+\.(?:m3u8|mp4)(?:\?[^"\']*)?#i', $page, $um)) {
+        $file = $um[0];
+    }
+    if (!$file) {
+        echo json_encode(['ok' => false, 'error' => 'no direct source']);
+        exit;
+    }
+    $result = ['ok' => true, 'type' => stripos($file, '.m3u8') !== false ? 'hls' : 'mp4', 'url' => $file, 'subs' => []];
 }
 
 file_put_contents($cacheFile, json_encode($result));

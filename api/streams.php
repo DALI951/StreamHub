@@ -32,5 +32,14 @@ if (!$scraper) {
     exit;
 }
 
+// ?fresh=1 bypasses the DB cache: signed CDN tokens go stale fast, so when
+// probing finds dead URLs we re-scrape to mint fresh ones.
+if (isset($_GET['fresh']) && $_GET['fresh'] === '1') {
+    Database::query(
+        "DELETE FROM cache_streams WHERE content_url = ? AND source = ?",
+        [$url, $scraper->getSourceName()]
+    );
+}
+
 $streams = $scraper->getStreams($url);
 echo json_encode(['streams' => $streams]);

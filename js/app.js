@@ -439,10 +439,28 @@ async function showWatch(url, title) {
         }
 
         const probes = await Promise.all(streams.map((s) => probeStream(s)));
-        const alive = streams.filter((_, i) => probes[i]);
-        const dropped = streams.length - alive.length;
+        let alive = streams.filter((_, i) => probes[i]);
+        let dropped = streams.length - alive.length;
         if (dropped > 0) {
-            showToast(dropped + ' ' + (t('streams_unavailable') || 'unavailable stream(s) removed'));
+            // Signed CDN tokens go stale fast -> re-scrape fresh streams and
+            // re-probe them before giving up (self-healing).
+            try {
+                const freshRes = await fetch(`${API_BASE}/streams.php?url=${encodeURIComponent(url)}&fresh=1`);
+                const freshData = await freshRes.json();
+                const freshStreams = (freshData.streams || []).filter((s) => !/morencius|earnvids/i.test(s.stream_url || ''));
+                if (freshStreams.length) {
+                    const fProbes = await Promise.all(freshStreams.map((s) => probeStream(s)));
+                    const fAlive = freshStreams.filter((_, i) => fProbes[i]);
+                    if (fAlive.length) {
+                        alive = fAlive;
+                        dropped = freshStreams.length - fAlive.length;
+                        streams = freshStreams;
+                    }
+                }
+            } catch (e) { /* keep the original list */ }
+            if (dropped > 0) {
+                showToast(dropped + ' ' + (t('streams_unavailable') || 'unavailable stream(s) removed'));
+            }
         }
         streams = alive;
         if (!streams.length) {

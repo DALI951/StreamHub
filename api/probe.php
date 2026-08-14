@@ -37,6 +37,10 @@ function probeFetch($url, $referer, $range = null) {
     $hdrs = [
         'Accept: */*',
         'Accept-Language: en-US,en;q=0.9',
+        'Origin: https://tv10.egydead.live',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: cross-site',
         'Sec-CH-UA: "Chromium";v="125", "Google Chrome";v="125", "Not.A/Brand";v="24"',
         'Sec-CH-UA-Mobile: ?0',
         'Sec-CH-UA-Platform: "Windows"',
@@ -73,13 +77,19 @@ function probeFetch($url, $referer, $range = null) {
 $result = ['ok' => false, 'reason' => 'unknown'];
 
 if ($type === 'iframe') {
-    $r = probeFetch($url, $referer);
-    if ($r['body'] === '' || $r['code'] === 0) {
-        $result = ['ok' => false, 'reason' => 'unreachable'];
-    } elseif ($r['code'] >= 400) {
-        $result = ['ok' => false, 'reason' => 'http_' . $r['code']];
-    } else {
+    // iframe streams must be UNWRAPPABLE to be listed. If we can't extract a
+    // direct video URL, the embed is a dead/watermarked shell — drop it.
+    // (This is the "watermark removal": only clean direct streams are shown.)
+    $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+        . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/api'), '/');
+    $unwrapUrl = $base . $path . '/unwrap.php?url=' . rawurlencode($url);
+    $uw = probeFetch($unwrapUrl, null, null);
+    $uj = json_decode($uw['body'], true);
+    if (is_array($uj) && !empty($uj['ok'])) {
         $result = ['ok' => true];
+    } else {
+        $result = ['ok' => false, 'reason' => 'not_unwrappable'];
     }
 } elseif ($type === 'hls') {
     $r = probeFetch($url, $referer, '0-4095');
