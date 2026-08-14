@@ -979,25 +979,29 @@ input:focus-visible {
     right: 14px;
 }
 
-/* iframe mode: NO bottom bar — cross-origin embeds keep their own native
-   player (controls, quality, fullscreen, dblclick all work). We only add a
-   small brand pill + fullscreen button in the corners, nothing else. */
+/* iframe mode: NO bottom bar — the embed's own player stays usable. Our fs
+   button sits on top of the embed's (bottom-right, bigger = covers it) and
+   the whole overlay auto-hides after 3s idle. */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
 }
 
 .pc-iframe-chrome .pc-corner-buttons {
     position: absolute;
-    top: 12px;
+    bottom: 12px;
     right: 14px;
     display: flex;
     gap: 6px;
+    pointer-events: none;
+}
+
+.pc-iframe-chrome.pc-visible .pc-corner-buttons {
     pointer-events: auto;
 }
 
 .pc-iframe-chrome .pc-corner-buttons .pc-btn {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     border-radius: 999px;
     background: rgba(3,7,18,0.55);
     border: 1px solid rgba(255,255,255,0.1);

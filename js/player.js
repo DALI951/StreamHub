@@ -74,6 +74,7 @@ function initPlayer(streamUrl, streamType, containerId) {
 
 function buildIframeChrome(container) {
     container.classList.add('pc-root');
+    let hideTimer = null;
 
     const chrome = document.createElement('div');
     chrome.className = 'pc-chrome pc-iframe-chrome';
@@ -90,18 +91,21 @@ function buildIframeChrome(container) {
     `;
     container.appendChild(chrome);
 
-    // Embeds (Byse etc.) are cross-origin: we can't touch their player, so we
-    // DON'T overlay the bottom of the video — their own controls, quality and
-    // fullscreen stay fully usable. We only add a small corner pill + fs button.
-    chrome.classList.add('pc-visible');
+    // Embeds are cross-origin: we can't control them, and their own fs button
+    // often doesn't work inside an iframe. So OUR fs button sits EXACTLY on
+    // top of theirs (bottom-right, slightly bigger to cover it). The whole
+    // overlay fades out after 3s of no mouse movement.
+    const showChrome = () => {
+        chrome.classList.add('pc-visible');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => chrome.classList.remove('pc-visible'), 3000);
+    };
+    container.addEventListener('mousemove', showChrome);
+    container.addEventListener('touchstart', showChrome, { passive: true });
+    showChrome();
 
     chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleFullscreen(container);
-    });
-
-    container.addEventListener('dblclick', (e) => {
-        e.preventDefault();
         toggleFullscreen(container);
     });
 }
