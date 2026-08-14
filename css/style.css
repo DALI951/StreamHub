@@ -474,12 +474,19 @@ input:focus-visible {
 
 .pc-chrome.pc-visible {
     opacity: 1;
+    pointer-events: none;
+}
+
+.pc-chrome.pc-visible .pc-buttons,
+.pc-chrome.pc-visible .pc-bigplay,
+.pc-chrome.pc-visible .pc-seek-row {
     pointer-events: auto;
 }
 
 .pc-scrim {
     position: absolute;
     inset: 0;
+    pointer-events: none;
     background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, transparent 35%, transparent 60%, rgba(0,0,0,0.75) 100%);
 }
 

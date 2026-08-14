@@ -430,16 +430,13 @@ async function showWatch(url, title) {
     try {
         const res = await fetch(`${API_BASE}/streams.php?url=${encodeURIComponent(url)}`);
         const data = await res.json();
-        const streams = data.streams || [];
+        const streams = (data.streams || []).filter(s => !/morencius|earnvids/i.test(s.stream_url || ''));
 
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
             hideLoading();
             return;
         }
-
-        const servers = [...new Set(streams.map(s => s.server_name || 'Server'))];
-        const bestStream = streams[0];
 
         app.innerHTML = `
             <div class="max-w-6xl mx-auto px-4 py-6 animate-in">
@@ -449,22 +446,13 @@ async function showWatch(url, title) {
                 </button>
                 ${title ? `<h1 class="text-2xl font-bold mb-4">${title}</h1>` : ''}
                 <div id="playerContainer" class="player-wrap w-full rounded-xl overflow-hidden bg-black mb-6"></div>
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <span class="text-sm text-gray-500">${t('server')}:</span>
-                    ${servers.map((s, i) => `
-                        <button onclick="switchServer(${i})"
-                            class="server-btn px-3 py-1.5 rounded-lg text-sm transition ${i === 0 ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}"
-                            data-server="${s}">
-                            ${t('server')} ${i + 1}
-                        </button>
-                    `).join('')}
-                </div>
                 <div class="flex flex-wrap gap-2 mb-6">
                     <span class="text-sm text-gray-500">${t('quality_select')}:</span>
                     ${streams.map((s, i) => `
                         <button onclick="switchStream(${i})"
                             class="stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === 0 ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}"
-                            data-index="${i}" data-direct="0">
+                            data-index="${i}" data-direct="0"
+                            title="${s.server_name || ''}">
                             ${s.quality_label || 'Auto'}
                             <span class="stream-dot"></span>
                         </button>
@@ -497,8 +485,8 @@ async function showWatch(url, title) {
                 ? (window.Installer ? Installer.proxify(playable.stream_url, playable.referer) : playable.stream_url)
                 : playable.stream_url;
         if (pick !== 0) {
-            const q = streams[pick].quality_label ? ` · ${streams[pick].quality_label}` : '';
-            showToast(`${t('now_playing')}: ${t('server')} ${pick + 1}${q} · ${unwrapped[pick] || streams[pick].stream_type !== 'iframe' ? t('direct') : t('external')}`);
+            const q = streams[pick].quality_label || 'Auto';
+            showToast(`${t('now_playing')}: ${q} · ${unwrapped[pick] || streams[pick].stream_type !== 'iframe' ? t('direct') : t('external')}`);
         }
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
@@ -583,16 +571,11 @@ function switchStream(index) {
         initPlayer(playerUrl, playable.stream_type, 'playerContainer');
         restoreSubtitles(document.getElementById('videoPlayer'));
         startInstaller(playable, window._watchPageUrl || '', window._watchTitle || '');
-        showToast(`${t('now_playing')}: ${t('server')} ${index + 1} · ${u ? t('direct') : t('external')}`);
+        const q = playable.quality_label || 'Auto';
+        showToast(`${t('now_playing')}: ${q} · ${u ? t('direct') : t('external')}`);
     });
     document.querySelectorAll('.stream-btn').forEach((btn, i) => {
         btn.className = `stream-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
     });
     updateStreamBadges();
-}
-
-function switchServer(index) {
-    document.querySelectorAll('.server-btn').forEach((btn, i) => {
-        btn.className = `server-btn px-3 py-1.5 rounded-lg text-sm transition ${i === index ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
-    });
 }
