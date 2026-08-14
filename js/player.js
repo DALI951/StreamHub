@@ -80,10 +80,6 @@ function buildIframeChrome(container) {
     const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
     chrome.innerHTML = `
         <div class="pc-scrim pc-scrim-iframe"></div>
-        <div class="pc-brand" title="${tt('brand_home', 'StreamHub — Home')}">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            <span>StreamHub Player</span>
-        </div>
         <div class="pc-corner-buttons">
             <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
         </div>
@@ -95,13 +91,6 @@ function buildIframeChrome(container) {
     // transparent hit-zone sitting exactly over the embed's zoom button
     // (bottom-right) — looks like their icon, but ours works.
     chrome.classList.add('pc-visible');
-
-    // Brand pill: covers the embed's own logo (top-left) and opens the home
-    // page in a NEW TAB (never overrides the current tab).
-    chrome.querySelector('.pc-brand').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.open(location.href.split('#')[0], '_blank');
-    });
 
     chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -132,10 +121,6 @@ function buildPlayerChrome(video, container) {
     const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
     chrome.innerHTML = `
         <div class="pc-scrim"></div>
-        <div class="pc-brand">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            <span>StreamHub Player</span>
-        </div>
         <div class="pc-bigplay" title="${tt('player_play', 'Play')}">${ICONS.play}</div>
         <div class="pc-loading">${ICONS.spinner}<span>${tt('loading', 'Loading...')}</span></div>
         <div class="pc-controls">

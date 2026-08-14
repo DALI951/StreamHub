@@ -464,11 +464,35 @@ async function showWatch(url, title) {
             }
         }
         streams = alive;
-        if (!streams.length && embedFallback.length) {
-            // Last resort: only broken/nonextractable embeds remain (e.g.
-            // hgcloud API down). Show the embed rather than "no results".
-            streams = embedFallback;
-            showToast(t('embed_fallback') || 'Direct streams unavailable — using embed');
+        if (!streams.length) {
+            // No direct streams survived. Try VidSrc (our own player, zero
+            // watermark) BEFORE falling back to embeds.
+            if (await playVidsrc()) {
+                app.innerHTML = `
+                    <div class="max-w-6xl mx-auto px-4 py-6 animate-in">
+                        <button onclick="history.back()" class="mb-4 text-gray-400 hover:text-white transition flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            <span>${t('back')}</span>
+                        </button>
+                        ${title ? `<h1 class="text-2xl font-bold mb-4">${title}</h1>` : ''}
+                        <div id="playerContainer" class="player-wrap w-full rounded-xl overflow-hidden bg-black mb-6"></div>
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <button onclick="switchVidsrc()" data-vidsrc="1"
+                                class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-red-600 text-white"
+                                title="VidSrc (English)">
+                                VidSrc <span class="stream-dot"></span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                hideLoading();
+                return;
+            }
+            if (embedFallback.length) {
+                // Last resort: only broken/nonextractable embeds remain.
+                streams = embedFallback;
+                showToast(t('embed_fallback') || 'Direct streams unavailable — using embed');
+            }
         }
         if (!streams.length) {
             app.innerHTML = `<div class="text-center py-20 text-gray-500">${t('no_results')}</div>`;
@@ -548,27 +572,47 @@ function updateStreamBadges() {
     });
 }
 
-async function switchVidsrc() {
+const AR_ORDINALS = { 'الاول': 1, 'الأول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4, 'الخامس': 5, 'السادس': 6, 'السابع': 7, 'الثامن': 8, 'التاسع': 9, 'العاشر': 10, 'الحادي عشر': 11, 'الثاني عشر': 12 };
+const titleCase = (s) => s.split(' ').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+
+function vidsrcQueryFromWatch() {
     const url = window._watchPageUrl || '';
     const title = window._watchTitle || '';
-    if (!url || !title) { showToast('VidSrc: ' + (t('missing_info') || 'missing info')); return; }
     const m = url.match(/-s(\d+)e(\d+)/i);
-    let qs = 'q=' + encodeURIComponent(title);
-    if (m) qs += '&type=tv&season=' + m[1] + '&episode=' + m[2];
+    if (m) return { q: title, type: 'tv', season: m[1], episode: m[2] };
+    const ar = url.match(/\/(?:episode|movie)\/([^/]*?)-الموسم-([^-]+)-الحلقة-?(\d+)/i);
+    if (ar) {
+        const eng = decodeURIComponent(ar[1]).replace(/^مسلسل-?/, '').replace(/-/g, ' ').trim();
+        const season = AR_ORDINALS[ar[2]] || parseInt(ar[2], 10) || 1;
+        return { q: eng ? titleCase(eng) : title, type: 'tv', season, episode: parseInt(ar[3], 10) || 1 };
+    }
+    const eng2 = url.match(/\/(?:episode|movie)\/([^/]*?)\//i);
+    const q = eng2 && eng2[1] && eng2[1].length > 2 && eng2[1].length < 60 ? titleCase(eng2[1].replace(/-/g, ' ').trim()) : title;
+    return { q, type: 'movie' };
+}
+
+async function playVidsrc() {
+    const q = vidsrcQueryFromWatch();
     const btn = document.querySelector('.stream-btn[data-vidsrc]');
     if (btn) { btn.classList.add('opacity-50'); btn.disabled = true; }
     try {
-        const res = await fetch(`api/vidsrc.php?${qs}`);
+        const res = await fetch(`api/vidsrc.php?q=${encodeURIComponent(q.q)}&type=${q.type}${q.season ? '&season=' + q.season + '&episode=' + q.episode : ''}`);
         const data = await res.json();
-        if (!data.ok) { showToast('VidSrc: ' + (data.error || 'unavailable')); return; }
+        if (!data.ok) { showToast('VidSrc: ' + (data.error || 'unavailable')); return false; }
         initPlayer(data.url, data.type || 'hls', 'playerContainer');
         showToast(`Now playing: ${data.quality_label || 'VidSrc'}`);
         restoreSubtitles(document.getElementById('videoPlayer'));
+        return true;
     } catch (e) {
         showToast('VidSrc: ' + (t('player_error') || 'error'));
+        return false;
     } finally {
         if (btn) { btn.classList.remove('opacity-50'); btn.disabled = false; }
     }
+}
+
+async function switchVidsrc() {
+    await playVidsrc();
 }
 
 async function probeStream(stream) {    try {

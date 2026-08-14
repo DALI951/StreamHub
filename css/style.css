@@ -979,26 +979,12 @@ input:focus-visible {
     right: 14px;
 }
 
-/* iframe mode: NO bottom bar — the embed's own player stays usable. Our fs
-   button is a fully TRANSPARENT hit-zone sitting exactly over the embed's
-   zoom button (bottom-right) — looks like their icon, but ours works. The
-   brand pill is SOLID and always visible so it covers the embed's own logo
-   (top-left), and clicking it opens the home page in a new tab. */
+/* iframe mode: NO bottom bar, NO branding — the embed's own player stays
+   usable. Our fs button is a fully TRANSPARENT hit-zone sitting exactly over
+   the embed's zoom button (bottom-right) — looks like their icon, but ours
+   works. */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
-}
-
-.pc-iframe-chrome .pc-brand {
-    pointer-events: auto;
-    cursor: pointer;
-    background: rgba(3,7,18,0.94);
-    backdrop-filter: none;
-    top: 10px;
-    left: 10px;
-    min-width: 240px;
-    height: 44px;
-    padding: 0 14px;
-    white-space: nowrap;
 }
 
 .pc-iframe-chrome .pc-corner-buttons {
@@ -1022,11 +1008,6 @@ input:focus-visible {
 [dir="rtl"] .pc-iframe-chrome .pc-corner-buttons {
     right: auto;
     left: 6px;
-}
-
-[dir="rtl"] .pc-iframe-chrome .pc-brand {
-    left: auto;
-    right: 10px;
 }
 
 .pc-sub-disabled {
