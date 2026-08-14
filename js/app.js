@@ -426,6 +426,10 @@ async function showWatch(url, title) {
     appState.currentView = 'watch';
     const app = document.getElementById('app');
     showLoading();
+    // Set early: the auto-VidSrc fallback below needs these.
+    window._watchPageUrl = url;
+    window._watchTitle = title || '';
+    window._unwrapped = {};
 
     try {
         const res = await fetch(`${API_BASE}/streams.php?url=${encodeURIComponent(url)}`);
