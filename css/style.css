@@ -979,37 +979,34 @@ input:focus-visible {
     right: 14px;
 }
 
-.pc-iframe-note {
-    color: rgba(255,255,255,0.6);
-    font-size: 12px;
-    padding: 0 8px;
-    white-space: nowrap;
-}
-
-/* iframe mode: our bottom bar stays visible and COVERS the embed's own
-   controls (cross-origin, can't touch their DOM) — SOLID bar (no see-through
-   gradient, so the embed's UI never shows as a dark rectangle) */
+/* iframe mode: NO bottom bar — cross-origin embeds keep their own native
+   player (controls, quality, fullscreen, dblclick all work). We only add a
+   small brand pill + fullscreen button in the corners, nothing else. */
 .pc-iframe-chrome .pc-scrim {
     pointer-events: none;
 }
 
-.pc-iframe-chrome .pc-controls {
-    pointer-events: none;
-}
-
-.pc-iframe-chrome.pc-visible .pc-controls {
-    pointer-events: auto;
-    background: linear-gradient(0deg, rgba(0,0,0,0.985) 0%, rgba(0,0,0,0.985) 50%, rgba(0,0,0,0.93) 100%);
-    padding-top: 46px;
-}
-
-.pc-iframe-chrome .pc-controls .pc-buttons {
+.pc-iframe-chrome .pc-corner-buttons {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    display: flex;
+    gap: 6px;
     pointer-events: auto;
 }
 
-.pc-iframe-chrome .pc-controls .pc-buttons .pc-btn,
-.pc-iframe-chrome .pc-controls .pc-buttons .pc-time {
-    pointer-events: auto;
+.pc-iframe-chrome .pc-corner-buttons .pc-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(3,7,18,0.55);
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(6px);
+}
+
+[dir="rtl"] .pc-iframe-chrome .pc-corner-buttons {
+    right: auto;
+    left: 14px;
 }
 
 .pc-sub-disabled {

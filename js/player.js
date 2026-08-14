@@ -74,7 +74,6 @@ function initPlayer(streamUrl, streamType, containerId) {
 
 function buildIframeChrome(container) {
     container.classList.add('pc-root');
-    let hideTimer = null;
 
     const chrome = document.createElement('div');
     chrome.className = 'pc-chrome pc-iframe-chrome';
@@ -85,40 +84,26 @@ function buildIframeChrome(container) {
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             <span>StreamHub Player</span>
         </div>
-        <div class="pc-controls pc-controls-iframe">
-            <div class="pc-buttons">
-                <span class="pc-time pc-iframe-note">${tt('external', 'External player')}</span>
-                <div class="pc-spacer"></div>
-                <button class="pc-btn pc-sub-disabled" title="${tt('subs_unavailable', 'Subtitles not available')}">${ICONS.cc}</button>
-                <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
-            </div>
+        <div class="pc-corner-buttons">
+            <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
         </div>
     `;
     container.appendChild(chrome);
 
-    // iframe embeds keep their own video; our bottom bar stays VISIBLE and
-    // covers the embed's controls so only our chrome is shown.
-    const keepChrome = () => {
-        chrome.classList.add('pc-visible');
-        container.classList.remove('pc-idle');
-        clearTimeout(hideTimer);
-    };
+    // Embeds (Byse etc.) are cross-origin: we can't touch their player, so we
+    // DON'T overlay the bottom of the video — their own controls, quality and
+    // fullscreen stay fully usable. We only add a small corner pill + fs button.
+    chrome.classList.add('pc-visible');
 
     chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
         e.stopPropagation();
         toggleFullscreen(container);
     });
-    chrome.querySelector('.pc-sub-disabled').addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
 
-    container.addEventListener('mousemove', keepChrome);
-    container.addEventListener('touchstart', keepChrome, { passive: true });
     container.addEventListener('dblclick', (e) => {
         e.preventDefault();
         toggleFullscreen(container);
     });
-    keepChrome();
 }
 
 const ICONS = {
