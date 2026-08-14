@@ -971,6 +971,35 @@ input:focus-visible {
     right: 14px;
 }
 
+.pc-iframe-note {
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    padding: 0 8px;
+    white-space: nowrap;
+}
+
+/* iframe mode: scrim + controls bar must NOT block the embed's own player */
+.pc-iframe-chrome .pc-scrim {
+    pointer-events: none;
+}
+
+.pc-controls-iframe {
+    pointer-events: none;
+}
+
+.pc-controls-iframe .pc-buttons {
+    pointer-events: auto;
+}
+
+.pc-sub-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.pc-sub-disabled:hover {
+    background: none !important;
+}
+
 [dir="rtl"] .stream-btn .stream-dot {
     margin-left: 0;
     margin-right: 6px;

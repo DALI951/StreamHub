@@ -17,12 +17,7 @@ function initPlayer(streamUrl, streamType, containerId) {
         iframe.setAttribute('webkitallowfullscreen', 'true');
         container.appendChild(iframe);
 
-        container.ondblclick = (e) => {
-            e.preventDefault();
-            toggleFullscreen(container);
-        };
-        addFullscreenButton(container);
-        addSubtitleButton(container, true);
+        buildIframeChrome(container);
         return;
     }
 
@@ -76,6 +71,57 @@ function initPlayer(streamUrl, streamType, containerId) {
 }
 
 /* ============ CUSTOM PLAYER CHROME ============ */
+
+function buildIframeChrome(container) {
+    container.classList.add('pc-root');
+    let hideTimer = null;
+
+    const chrome = document.createElement('div');
+    chrome.className = 'pc-chrome pc-iframe-chrome';
+    const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
+    chrome.innerHTML = `
+        <div class="pc-scrim pc-scrim-iframe"></div>
+        <div class="pc-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span>StreamHub Player</span>
+        </div>
+        <div class="pc-controls pc-controls-iframe">
+            <div class="pc-buttons">
+                <span class="pc-time pc-iframe-note">${tt('external', 'External player')}</span>
+                <div class="pc-spacer"></div>
+                <button class="pc-btn pc-sub-disabled" title="${tt('subs_unavailable', 'Subtitles not available')}">${ICONS.cc}</button>
+                <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
+            </div>
+        </div>
+    `;
+    container.appendChild(chrome);
+
+    const showChrome = () => {
+        chrome.classList.add('pc-visible');
+        container.classList.remove('pc-idle');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+            chrome.classList.remove('pc-visible');
+            container.classList.add('pc-idle');
+        }, 3000);
+    };
+
+    chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen(container);
+    });
+    chrome.querySelector('.pc-sub-disabled').addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    container.addEventListener('mousemove', showChrome);
+    container.addEventListener('touchstart', showChrome, { passive: true });
+    container.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        toggleFullscreen(container);
+    });
+    showChrome();
+}
 
 const ICONS = {
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
@@ -176,7 +222,7 @@ function buildPlayerChrome(video, container) {
                 if (menu && menu.classList.contains('pc-open')) return;
                 chrome.classList.remove('pc-visible');
                 container.classList.add('pc-idle');
-            }, 2500);
+            }, 3000);
         }
     };
 
@@ -190,7 +236,7 @@ function buildPlayerChrome(video, container) {
 
     video.addEventListener('play', () => { setPlayIcon(true); showChrome(); });
     video.addEventListener('pause', () => { setPlayIcon(false); showChrome(); });
-    video.addEventListener('click', () => { if (container.classList.contains('pc-visible')) togglePlay(); });
+    video.addEventListener('click', () => { togglePlay(); showChrome(); });
     container.addEventListener('mousemove', showChrome);
     container.addEventListener('touchstart', showChrome, { passive: true });
     container.addEventListener('dblclick', () => toggleFullscreen(container));

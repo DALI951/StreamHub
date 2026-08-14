@@ -8,6 +8,7 @@
  *  - morencius.com/v/{id}   (EarnVids)  : base36 packer -> links.hls4 -> decimal-ASCII m3u8 -> media playlist
  *  - hgcloud.to/e/{id}      (StreamHG)  : POST /api/sources/{id} -> m3u8
  *  - mixdrop.top/e/{id}     (Mixdrop)   : GET /f/{id} -> JSON wurl/rurl
+ *  - vidaraa.cc/e/{id}      (Streamix)  : POST /api/stream {filecode} -> streaming_url (JWPlayer)
  */
 
 error_reporting(0);
@@ -42,7 +43,7 @@ if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < 1800) {
     }
 }
 
-function fetchUrl($url, $referer = null, $post = false) {
+function fetchUrl($url, $referer = null, $post = false, $postBody = null) {
     global $ua;
     $ch = curl_init();
     $hdrs = [
@@ -69,6 +70,10 @@ function fetchUrl($url, $referer = null, $post = false) {
     }
     if ($post) {
         $opts[CURLOPT_POST] = true;
+        if ($postBody !== null) {
+            $opts[CURLOPT_POSTFIELDS] = $postBody;
+            $opts[CURLOPT_HTTPHEADER] = array_merge($hdrs, ['Content-Type: application/json']);
+        }
     }
     curl_setopt_array($ch, $opts);
     $body = curl_exec($ch);
@@ -284,6 +289,35 @@ if (strpos($host, 'morencius.com') !== false || strpos($host, 'earnvids.com') !=
         exit;
     }
     $result = ['ok' => true, 'type' => 'mp4', 'url' => $wurl, 'subs' => []];
+} elseif (strpos($host, 'vidaraa') !== false) {
+    // ---- Streamix (vidaraa.cc) ----
+    if (!preg_match('#/e/([A-Za-z0-9]+)#', $embed, $m)) {
+        echo json_encode(['ok' => false, 'error' => 'bad vidaraa url']);
+        exit;
+    }
+    $id = $m[1];
+    $scheme = parse_url($embed, PHP_URL_SCHEME) ?: 'https';
+    $api = fetchUrl($scheme . '://' . $host . '/api/stream', $embed, true, json_encode(['filecode' => $id, 'device' => 'web']));
+    $payload = $api;
+    if ($payload === null) {
+        echo json_encode(['ok' => false, 'error' => 'vidaraa api unreachable']);
+        exit;
+    }
+    $j = json_decode($payload, true);
+    $file = $j['streaming_url'] ?? null;
+    if (!$file) {
+        echo json_encode(['ok' => false, 'error' => 'no streaming url from vidaraa']);
+        exit;
+    }
+    $subs = [];
+    if (!empty($j['subtitles']) && is_array($j['subtitles'])) {
+        foreach ($j['subtitles'] as $s) {
+            if (!empty($s['file_path']) && !empty($s['language'])) {
+                $subs[] = ['lang' => $s['language'], 'url' => $s['file_path']];
+            }
+        }
+    }
+    $result = ['ok' => true, 'type' => 'hls', 'url' => proxyUrl($file), 'subs' => $subs];
 } else {
     echo json_encode(['ok' => false, 'error' => 'unsupported host']);
     exit;
