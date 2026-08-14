@@ -74,14 +74,13 @@ function initPlayer(streamUrl, streamType, containerId) {
 
 function buildIframeChrome(container) {
     container.classList.add('pc-root');
-    let hideTimer = null;
 
     const chrome = document.createElement('div');
     chrome.className = 'pc-chrome pc-iframe-chrome';
     const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
     chrome.innerHTML = `
         <div class="pc-scrim pc-scrim-iframe"></div>
-        <div class="pc-brand">
+        <div class="pc-brand" title="${tt('brand_home', 'StreamHub — Home')}">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             <span>StreamHub Player</span>
         </div>
@@ -92,17 +91,17 @@ function buildIframeChrome(container) {
     container.appendChild(chrome);
 
     // Embeds are cross-origin: we can't control them, and their own fs button
-    // often doesn't work inside an iframe. So OUR fs button sits EXACTLY on
-    // top of theirs (bottom-right, slightly bigger to cover it). The whole
-    // overlay fades out after 3s of no mouse movement.
-    const showChrome = () => {
-        chrome.classList.add('pc-visible');
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => chrome.classList.remove('pc-visible'), 3000);
-    };
-    container.addEventListener('mousemove', showChrome);
-    container.addEventListener('touchstart', showChrome, { passive: true });
-    showChrome();
+    // often doesn't work inside an iframe. So OUR fs button is a fully
+    // transparent hit-zone sitting exactly over the embed's zoom button
+    // (bottom-right) — looks like their icon, but ours works.
+    chrome.classList.add('pc-visible');
+
+    // Brand pill: covers the embed's own logo (top-left) and opens the home
+    // page in a NEW TAB (never overrides the current tab).
+    chrome.querySelector('.pc-brand').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open(location.href.split('#')[0], '_blank');
+    });
 
     chrome.querySelector('.pc-fs').addEventListener('click', (e) => {
         e.stopPropagation();
