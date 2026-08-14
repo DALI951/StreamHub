@@ -81,6 +81,8 @@ function initPlayer(streamUrl, streamType, containerId) {
             autoEnableArabic(video);
         });
     }
+
+    loadArabicSubs(video, false);
 }
 
 /* ============ CUSTOM PLAYER CHROME ============ */
@@ -93,11 +95,24 @@ function buildIframeChrome(container) {
     const tt = (k, fb) => (typeof t === 'function' ? t(k) || fb : fb);
     chrome.innerHTML = `
         <div class="pc-scrim pc-scrim-iframe"></div>
+        <div class="pc-loading pc-show">${ICONS.spinner}<span>${tt('loading', 'Loading...')}</span></div>
         <div class="pc-corner-buttons">
             <button class="pc-btn pc-fs" title="${tt('player_fullscreen', 'Fullscreen')}">${ICONS.fs}</button>
         </div>
     `;
     container.appendChild(chrome);
+
+    const iframe = container.querySelector('iframe');
+    if (iframe) {
+        iframe.addEventListener('load', () => {
+            chrome.querySelector('.pc-loading').classList.remove('pc-show');
+        });
+        iframe.addEventListener('error', () => {
+            chrome.querySelector('.pc-loading').classList.remove('pc-show');
+        });
+    } else {
+        chrome.querySelector('.pc-loading').classList.remove('pc-show');
+    }
 
     // Embeds are cross-origin: we can't control them, and their own fs button
     // often doesn't work inside an iframe. So OUR fs button is a fully
@@ -371,6 +386,10 @@ function buildPlayerChrome(video, container) {
     addSubtitleButton(container, false, video, ccBtn);
     chrome.querySelector('.pc-cc').style.display = 'none';
     video.controls = false;
+    // spinner + controls visible immediately so a loading stream is never a
+    // silent black box (hidden on 'playing'/'canplay'/'loadedmetadata')
+    loading.classList.add('pc-show');
+    setTimeout(() => loading.classList.remove('pc-show'), 12000);
     showChrome();
 }
 
@@ -547,6 +566,7 @@ function openSubtitlePanel(video, container, btn) {
         <div class="sub-tracks">
             <button class="sub-track ${offCls}" data-idx="-1">${t('subs_off')}</button>
             ${tracks}
+            <button class="sub-track" data-arabic="1">${t('subs_arabic')}</button>
         </div>
         <label class="sub-upload">
             <input type="file" accept=".vtt,.srt" class="sub-file">
@@ -556,6 +576,7 @@ function openSubtitlePanel(video, container, btn) {
     container.appendChild(panel);
 
     panel.querySelectorAll('.sub-track').forEach(b => {
+        if (b.dataset.arabic) return;
         b.onclick = () => {
             const idx = parseInt(b.dataset.idx, 10);
             window._pcSubsPicked = true;
@@ -567,6 +588,14 @@ function openSubtitlePanel(video, container, btn) {
             panel.remove();
         };
     });
+
+    const arBtn = panel.querySelector('[data-arabic]');
+    if (arBtn) {
+        arBtn.onclick = () => {
+            panel.remove();
+            loadArabicSubs(video, true);
+        };
+    }
 
     const fileInput = panel.querySelector('.sub-file');
     fileInput.addEventListener('change', () => {
@@ -613,6 +642,41 @@ function injectSubtitleTrack(video, url, label) {
     track.addEventListener('load', () => {
         for (const t of video.textTracks) t.mode = t === track.track ? 'showing' : 'disabled';
     });
+}
+
+async function loadArabicSubs(video, force) {
+    if (!video || !video.isConnected) return;
+    if (!force && (window._pcSubsPicked || window._pcArabicTried)) return;
+    window._pcArabicTried = true;
+    const q = typeof vidsrcQueryFromWatch === 'function' ? vidsrcQueryFromWatch() : null;
+    if (!q || !q.q) return;
+    const toast = (msg) => { if (typeof showToast === 'function') showToast(msg); };
+    try {
+        const res = await fetch(`api/subs.php?q=${encodeURIComponent(q.q)}&type=${q.type}${q.season ? '&season=' + q.season + '&episode=' + q.episode : ''}`);
+        const data = await res.json();
+        if (!data.ok || !data.url || !video.isConnected) {
+            if (force) toast(t('subs_arabic_error') || 'No Arabic subtitle found');
+            return;
+        }
+        if (window._pcSubsPicked) return;
+        for (const tr of video.textTracks || []) if (tr.mode === 'showing') return;
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = 'العربية';
+        track.srclang = 'ar';
+        track.src = data.url;
+        video.appendChild(track);
+        track.addEventListener('load', () => {
+            if (window._pcSubsPicked) return;
+            for (const t of video.textTracks) t.mode = t === track.track ? 'showing' : 'disabled';
+            toast(t('subs_arabic_on') || 'Arabic subtitles on');
+        });
+        track.addEventListener('error', () => {
+            if (force) toast(t('subs_arabic_error') || 'No Arabic subtitle found');
+        });
+    } catch (e) {
+        if (force) toast(t('subs_arabic_error') || 'No Arabic subtitle found');
+    }
 }
 
 function srtToVtt(srt) {
