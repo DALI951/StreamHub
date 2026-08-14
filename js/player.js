@@ -565,12 +565,23 @@ function openSubtitlePanel(video, container, btn) {
     }
     if (!tracks) tracks = '<div class="sub-none">' + t('subs_none') + '</div>';
     const offCls = activeIdx === -1 ? 'pc-on' : '';
+    const saved = subOffsetValue();
     panel.innerHTML = `
         <div class="sub-panel-title">${t('subs_title')}</div>
         <div class="sub-tracks">
             <button class="sub-track ${offCls}" data-idx="-1">${t('subs_off')}</button>
             ${tracks}
             <button class="sub-track" data-arabic="1">${t('subs_arabic')}</button>
+        </div>
+        <div class="sub-sync">
+            <span class="sub-sync-label">${t('subs_sync')}</span>
+            <button class="sub-sync-btn" data-sync="-5">−5</button>
+            <button class="sub-sync-btn" data-sync="-0.5">−0.5</button>
+            <span class="sub-sync-val" data-sync-val>${saved ? (saved > 0 ? '+' : '') + saved.toFixed(1) + 's' : '0.0s'}</span>
+            <button class="sub-sync-btn" data-sync="0.5">+0.5</button>
+            <button class="sub-sync-btn" data-sync="5">+5</button>
+            <button class="sub-sync-btn" data-sync="auto">${t('subs_auto')}</button>
+            <button class="sub-sync-btn" data-sync="0" title="${t('subs_reset')}">0</button>
         </div>
         <label class="sub-upload">
             <input type="file" accept=".vtt,.srt" class="sub-file">
@@ -601,6 +612,39 @@ function openSubtitlePanel(video, container, btn) {
         };
     }
 
+    const valSpan = panel.querySelector('[data-sync-val]');
+    panel.querySelectorAll('[data-sync]').forEach((b) => {
+        b.onclick = async () => {
+            const action = b.dataset.sync;
+            const trackEl = showingTrackEl(video);
+            if (!trackEl) {
+                if (typeof showToast === 'function') showToast(t('subs_sync_none') || 'Select a subtitle first');
+                return;
+            }
+            let rel;
+            if (action === 'auto') {
+                const track = trackEl.track;
+                const need = autoFitOffset(video, track);
+                if (!need) {
+                    if (typeof showToast === 'function') showToast(t('subs_auto_none') || 'No auto-sync needed');
+                    return;
+                }
+                rel = need - subOffsetValue();
+            } else if (action === '0') {
+                rel = -subOffsetValue();
+            } else {
+                rel = parseFloat(action);
+            }
+            if (!rel) return;
+            const ok = await applyTrackOffset(video, trackEl, Math.round(rel * 1000));
+            if (!ok) return;
+            const val = Math.round((subOffsetValue() + rel) * 10) / 10;
+            saveSubOffset(val);
+            if (valSpan) valSpan.textContent = (val > 0 ? '+' : '') + val.toFixed(1) + 's';
+            if (typeof showToast === 'function') showToast(t('subs_synced') + ' ' + (val > 0 ? '+' : '') + val.toFixed(1) + 's');
+        };
+    });
+
     const fileInput = panel.querySelector('.sub-file');
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];
@@ -612,12 +656,94 @@ function openSubtitlePanel(video, container, btn) {
             const vtt = file.name.toLowerCase().endsWith('.srt') ? srtToVtt(text) : text;
             const blob = new Blob([vtt], { type: 'text/vtt' });
             const url = URL.createObjectURL(blob);
-            injectSubtitleTrack(video, url, file.name.replace(/\.(srt|vtt)$/i, ''));
+            const el = injectSubtitleTrack(video, url, file.name.replace(/\.(srt|vtt)$/i, ''));
+            window._pcSubVttText = vtt;
+            window._pcSubVttTrack = el;
             persistCustomSubtitle(vtt);
             panel.remove();
         };
         reader.readAsText(file);
     });
+}
+
+function subOffsetKey() {
+    const q = typeof vidsrcQueryFromWatch === 'function' ? vidsrcQueryFromWatch() : null;
+    if (!q || !q.q) return null;
+    return 'pc_sub_off_' + (q.q + '|' + q.type).toLowerCase().replace(/[^a-z0-9|]/g, '');
+}
+
+function subOffsetValue() {
+    try {
+        const k = subOffsetKey();
+        if (!k) return 0;
+        const v = parseFloat(localStorage.getItem(k) || '');
+        return Number.isFinite(v) ? v : 0;
+    } catch (e) { return 0; }
+}
+
+function saveSubOffset(v) {
+    try {
+        const k = subOffsetKey();
+        if (!k) return;
+        if (v) localStorage.setItem(k, String(Math.round(v * 10) / 10));
+        else localStorage.removeItem(k);
+    } catch (e) { /* storage unavailable */ }
+}
+
+function shiftVttTimings(vtt, ms) {
+    return vtt.replace(/(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})([^\n]*)/g,
+        (m, h1, m1, s1, x1, h2, m2, s2, x2, tail) => {
+            const fmt = (t) => {
+                t = Math.max(0, Math.round(t));
+                return `${String(Math.floor(t / 3600000)).padStart(2, '0')}:${String(Math.floor(t % 3600000 / 60000)).padStart(2, '0')}:${String(Math.floor(t % 60000 / 1000)).padStart(2, '0')}.${String(t % 1000).padStart(3, '0')}`;
+            };
+            return `${fmt(+h1 * 3600000 + +m1 * 60000 + +s1 * 1000 + +x1 + ms)} --> ${fmt(+h2 * 3600000 + +m2 * 60000 + +s2 * 1000 + +x2 + ms)}${tail}`;
+        });
+}
+
+async function applyTrackOffset(video, trackEl, offsetMs) {
+    if (!trackEl || !trackEl.src) return false;
+    try {
+        let text = window._pcSubVttTrack === trackEl ? window._pcSubVttText : null;
+        if (text == null) text = await (await fetch(trackEl.src)).text();
+        const shifted = shiftVttTimings(text, offsetMs);
+        window._pcSubVttText = shifted;
+        window._pcSubVttTrack = trackEl;
+        const url = URL.createObjectURL(new Blob([shifted], { type: 'text/vtt' }));
+        const nt = document.createElement('track');
+        nt.kind = 'subtitles';
+        nt.label = trackEl.label || 'العربية';
+        nt.srclang = trackEl.srclang || 'und';
+        nt.src = url;
+        video.appendChild(nt);
+        trackEl.remove();
+        nt.addEventListener('load', () => {
+            for (const tr of video.textTracks) tr.mode = tr === nt.track ? 'showing' : 'disabled';
+        });
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function showingTrackEl(video) {
+    const trs = video.textTracks || [];
+    for (let i = 0; i < trs.length; i++) {
+        if (trs[i].mode === 'showing') {
+            const els = video.querySelectorAll('track');
+            return els[i] || null;
+        }
+    }
+    return null;
+}
+
+function autoFitOffset(video, textTrack) {
+    if (!video || !video.duration || !textTrack || !textTrack.cues || !textTrack.cues.length) return 0;
+    const cues = Array.from(textTrack.cues);
+    const first = cues[0].startTime;
+    const delta = video.duration - cues[cues.length - 1].endTime;
+    if (first < 15 && delta > 20 && delta < 300) return Math.round(delta);
+    return 0;
 }
 
 function autoEnableArabic(video) {
@@ -646,6 +772,7 @@ function injectSubtitleTrack(video, url, label) {
     track.addEventListener('load', () => {
         for (const t of video.textTracks) t.mode = t === track.track ? 'showing' : 'disabled';
     });
+    return track;
 }
 
 async function loadArabicSubs(video, force) {
@@ -673,7 +800,17 @@ async function loadArabicSubs(video, force) {
         track.addEventListener('load', () => {
             if (window._pcSubsPicked) return;
             for (const t of video.textTracks) t.mode = t === track.track ? 'showing' : 'disabled';
-            toast(t('subs_arabic_on') || 'Arabic subtitles on');
+            const hadSaved = subOffsetValue() !== 0;
+            setTimeout(async () => {
+                if (!video.isConnected) return;
+                const off = hadSaved ? subOffsetValue() : autoFitOffset(video, track.track);
+                if (!off) return;
+                const applied = await applyTrackOffset(video, track, Math.round(off * 1000));
+                if (applied) {
+                    saveSubOffset(off);
+                    toast(t('subs_synced') + ' ' + (off > 0 ? '+' : '') + off.toFixed(1) + 's');
+                }
+            }, 400);
         });
         track.addEventListener('error', () => {
             if (force) toast(t('subs_arabic_error') || 'No Arabic subtitle found');
