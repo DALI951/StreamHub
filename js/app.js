@@ -490,8 +490,8 @@ async function showWatch(url, title) {
                     <div class="flex flex-wrap gap-2 mb-6">
                         <button onclick="switchVidsrc()" data-vidsrc="1"
                             class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-red-600 text-white"
-                            title="VidSrc (English)">
-                            VidSrc <span class="stream-dot"></span>
+                            title="High quality (auto)">
+                            HD+ <span class="stream-dot"></span>
                         </button>
                     </div>
                     <div id="watchExtras"></div>
@@ -529,8 +529,8 @@ async function showWatch(url, title) {
                     `).join('')}
                     <button onclick="switchVidsrc()" data-vidsrc="1"
                         class="stream-btn px-3 py-1.5 rounded-lg text-sm transition bg-gray-800 text-gray-400 hover:text-white"
-                        title="VidSrc (English)">
-                        VidSrc <span class="stream-dot"></span>
+                        title="High quality (auto)">
+                        HD+ <span class="stream-dot"></span>
                     </button>
                 </div>
                 <div id="watchExtras"></div>
@@ -699,16 +699,29 @@ async function playVidsrc() {
     const q = vidsrcQueryFromWatch();
     const btn = document.querySelector('.stream-btn[data-vidsrc]');
     if (btn) { btn.classList.add('opacity-50'); btn.disabled = true; }
+    const params = `q=${encodeURIComponent(q.q)}&type=${q.type}${q.season ? '&season=' + q.season + '&episode=' + q.episode : ''}`;
+    const qOf = (label) => { const m = (label || '').match(/(\d{3,4})p/); return m ? parseInt(m[1], 10) : 0; };
     try {
-        const res = await fetch(`api/vidsrc.php?q=${encodeURIComponent(q.q)}&type=${q.type}${q.season ? '&season=' + q.season + '&episode=' + q.episode : ''}`);
-        const data = await res.json();
-        if (!data.ok) { showToast('VidSrc: ' + (data.error || 'unavailable')); return false; }
-        initPlayer(data.url, data.type || 'hls', 'playerContainer');
-        showToast(`Now playing: ${data.quality_label || 'VidSrc'}`);
+        // Best-of backends: VidCore (streamguide.cfd), VidLink (1080p HLS)
+        // and VidSrc in parallel — the highest real quality wins, so nothing
+        // ever caps at a lower tier.
+        const [vc, vl, vs] = await Promise.all([
+            fetch(`api/vidcore.php?${params}`).then((r) => r.json()).catch(() => ({ ok: false })),
+            fetch(`api/vidlink.php?${params}`).then((r) => r.json()).catch(() => ({ ok: false })),
+            fetch(`api/vidsrc.php?${params}`).then((r) => r.json()).catch(() => ({ ok: false })),
+        ]);
+        const ok = [vc, vl, vs].filter((s) => s.ok);
+        const pick = ok.length === 0
+            ? (vc.ok ? vc : (vl.ok ? vl : vs))
+            : ok.sort((a, b) => qOf(b.quality_label) - qOf(a.quality_label))[0];
+        if (!pick.ok) { showToast('HD+: ' + (pick.error || 'unavailable')); return false; }
+        initPlayer(pick.url, pick.type || 'hls', 'playerContainer');
+        const lbl = (pick.quality_label || '').match(/\d{3,4}p/);
+        showToast(`Now playing: ${lbl ? lbl[0] : 'HD+'}`);
         restoreSubtitles(document.getElementById('videoPlayer'));
         return true;
     } catch (e) {
-        showToast('VidSrc: ' + (t('player_error') || 'error'));
+        showToast('HD+: ' + (t('player_error') || 'error'));
         return false;
     } finally {
         if (btn) { btn.classList.remove('opacity-50'); btn.disabled = false; }
@@ -772,7 +785,7 @@ async function autoVidsrc() {
     }
     if (_pcVidsrcAttempts < 6) {
         _pcVidsrcAttempts++;
-        showToast('VidSrc ' + (t('retrying') || 'retrying…') + ' (' + _pcVidsrcAttempts + '/6)');
+        showToast('HD+ ' + (t('retrying') || 'retrying…') + ' (' + _pcVidsrcAttempts + '/6)');
         clearTimeout(_pcWatchTimer);
         _pcWatchTimer = setTimeout(autoVidsrc, 5000);
     } else {

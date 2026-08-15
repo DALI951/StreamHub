@@ -1,2 +1,18 @@
+# credentials — never commit these
 config.php
 upload.py
+_upload.py
+upload_test.py
+
+# junk / probe / debug — keep out of the repo
+check_extensions.php
+test_*.php
+testdirect_out.txt
+run_setup.py
+api/debug*.php
+api/test*.php
+api/*_debug.php
+api/probe*.php
+api/fix_enum.php
+api/fix_type_enum.php
+api/test_season_page.php

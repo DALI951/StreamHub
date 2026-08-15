@@ -14,6 +14,12 @@ $dl  = isset($_GET['dl']);
 $ref = trim($_GET['ref'] ?? '');
 $head = (($_SERVER['REQUEST_METHOD'] ?? '') === 'HEAD') || isset($_GET['head']);
 
+// vidlink HLS: the CloudFront cookie rides along as &ck= (server cache dir
+// is not writable, so no file-based key). It must be forwarded on the
+// playlist AND every segment request.
+$ck = trim($_GET['ck'] ?? '');
+$cookie = $ck !== '' ? $ck : '';
+
 $isPlaylist = (bool)preg_match('/\.m3u8($|\?)/i', $url);
 $forceMpeg = isset($_GET['mpeg']);
 
@@ -22,6 +28,7 @@ $headers = [
     'Accept: */*',
 ];
 if ($ref) $headers[] = 'Referer: ' . $ref;
+if ($cookie !== '') $headers[] = 'Cookie: ' . $cookie;
 if (isset($_SERVER['HTTP_RANGE'])) $headers[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
 
 $ch = curl_init($url);
@@ -58,6 +65,14 @@ curl_close($ch);
 $decodedPlaylist = decodeDecimalAscii((string)$body);
 if ($decodedPlaylist !== null && strpos($decodedPlaylist, '#EXTM3U') !== false) {
     $body = $decodedPlaylist;
+    $isPlaylist = true;
+    $respHeaders['content-type'] = 'application/vnd.apple.mpegurl';
+}
+
+// playlist sniff: some HLS backends serve playlists from URLs that don't end
+// in .m3u8 (e.g. streamguide.cfd/Cffi-stream/m?t=...) — detect by content so
+// rewritePlaylist still rewrites the variant URLs through this proxy.
+if (!$isPlaylist && $body && strpos((string)$body, '#EXTM3U') !== false) {
     $isPlaylist = true;
     $respHeaders['content-type'] = 'application/vnd.apple.mpegurl';
 }
@@ -162,8 +177,9 @@ if (is_string($body)) {
 exit;
 
 function rewritePlaylist(string $body, string $base, bool $dl, string $ref = ''): string {
-    global $apiBase;
+    global $apiBase, $ck;
     $q = ($dl ? '&dl=1' : '') . ($ref ? '&ref=' . rawurlencode($ref) : '');
+    if ($ck !== '') $q .= '&ck=' . rawurlencode($ck);
     // propagate the token param from the master URL to every rewritten child
     $baseQuery = parse_url($base, PHP_URL_QUERY) ?? '';
     $tok = '';
